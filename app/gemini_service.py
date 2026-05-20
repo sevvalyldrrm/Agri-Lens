@@ -241,23 +241,27 @@ class GeminiService:
             "trigger the necessary IoT actions, and respond in JSON format."
         )
 
-        chat = self.model.start_chat()
-        final_text, actions_taken = await self._run_function_calling_loop(
-            chat, parts, label="FieldAnalysis"
-        )
-        logger.debug(f"Gemini raw response:\n{final_text}")
-        data = self._parse_json_response(final_text)
+        try:
+            chat = self.model.start_chat()
+            final_text, actions_taken = await self._run_function_calling_loop(
+                chat, parts, label="FieldAnalysis"
+            )
+            logger.debug(f"Gemini raw response:\n{final_text}")
+            data = self._parse_json_response(final_text)
 
-        return DiagnosisResult(
-            field_id=request.field_id,
-            diagnosis=data.get("diagnosis", "Diagnosis unavailable"),
-            severity=SeverityLevel(data.get("severity", "medium")),
-            root_cause=data.get("root_cause", ""),
-            recommendations=data.get("recommendations", []),
-            actions_taken=actions_taken,
-            report_for_farmer=data.get("report_for_farmer", final_text),
-            confidence_score=float(data.get("confidence_score", 0.7)),
-        )
+            return DiagnosisResult(
+                field_id=request.field_id,
+                diagnosis=data.get("diagnosis", "Diagnosis unavailable"),
+                severity=SeverityLevel(data.get("severity", "medium")),
+                root_cause=data.get("root_cause", ""),
+                recommendations=data.get("recommendations", []),
+                actions_taken=actions_taken,
+                report_for_farmer=data.get("report_for_farmer", final_text),
+                confidence_score=float(data.get("confidence_score", 0.7)),
+            )
+        except Exception as exc:
+            logger.warning(f"Gemini API error in analyze_field, falling back to mock: {exc}")
+            return self._mock_diagnosis(request)
 
     # -----------------------------------------------------------------------
     #  Public API: plant disease cross-query
@@ -295,27 +299,31 @@ class GeminiService:
             "trigger the necessary IoT actions, and respond in JSON format."
         )
 
-        chat = self.disease_model.start_chat()
-        final_text, actions_taken = await self._run_function_calling_loop(
-            chat, parts, label="PlantDisease"
-        )
-        data = self._parse_json_response(final_text)
+        try:
+            chat = self.disease_model.start_chat()
+            final_text, actions_taken = await self._run_function_calling_loop(
+                chat, parts, label="PlantDisease"
+            )
+            data = self._parse_json_response(final_text)
 
-        return PlantDiseaseResult(
-            field_id=request.field_id,
-            visual_finding=data.get("visual_finding", "Image analysis complete"),
-            sensor_finding=data.get("sensor_finding", ""),
-            priority_mode=PriorityMode(data.get("priority_mode", "combined")),
-            priority_reason=data.get("priority_reason", ""),
-            diagnosis=data.get("diagnosis", "Diagnosis unavailable"),
-            severity=SeverityLevel(data.get("severity", "medium")),
-            root_cause=data.get("root_cause", ""),
-            recommendations=data.get("recommendations", []),
-            actions_taken=actions_taken,
-            report_for_farmer=data.get("report_for_farmer", final_text),
-            confidence_score=float(data.get("confidence_score", 0.7)),
-            seasonal_pattern=data.get("seasonal_pattern"),
-        )
+            return PlantDiseaseResult(
+                field_id=request.field_id,
+                visual_finding=data.get("visual_finding", "Image analysis complete"),
+                sensor_finding=data.get("sensor_finding", ""),
+                priority_mode=PriorityMode(data.get("priority_mode", "combined")),
+                priority_reason=data.get("priority_reason", ""),
+                diagnosis=data.get("diagnosis", "Diagnosis unavailable"),
+                severity=SeverityLevel(data.get("severity", "medium")),
+                root_cause=data.get("root_cause", ""),
+                recommendations=data.get("recommendations", []),
+                actions_taken=actions_taken,
+                report_for_farmer=data.get("report_for_farmer", final_text),
+                confidence_score=float(data.get("confidence_score", 0.7)),
+                seasonal_pattern=data.get("seasonal_pattern"),
+            )
+        except Exception as exc:
+            logger.warning(f"Gemini API error in analyze_plant_disease, falling back to mock: {exc}")
+            return self._mock_plant_disease(request)
 
     # -----------------------------------------------------------------------
     #  Streaming analysis (SSE) — live demo
@@ -550,3 +558,138 @@ class GeminiService:
              "severity": "high"},
         ))
         return actions
+
+    # -----------------------------------------------------------------------
+    #  Mock responses — offline fallback for quota errors
+    # -----------------------------------------------------------------------
+
+    def _mock_diagnosis(self, request: AnalysisRequest) -> DiagnosisResult:
+        """Returns a sensor-based mock DiagnosisResult when Gemini API is unavailable."""
+        s = request.sensor_data
+        actions_taken = []
+
+        if s.soil_moisture < 30:
+            _, action = execute_iot_action("activate_irrigation", {
+                "zone": "full field", "duration_minutes": 45,
+                "reason": f"Soil moisture critically low at {s.soil_moisture}%",
+            })
+            actions_taken.append(action)
+
+        if s.nitrogen < 20:
+            _, action = execute_iot_action("apply_fertilizer", {
+                "nutrient_type": "nitrogen", "amount_ml": 500,
+                "reason": f"Nitrogen deficiency: {s.nitrogen} mg/kg",
+            })
+            actions_taken.append(action)
+
+        severity = SeverityLevel.HIGH if s.soil_moisture < 25 else SeverityLevel.MEDIUM
+        return DiagnosisResult(
+            field_id=request.field_id,
+            diagnosis="[OFFLINE MODE] Drought stress detected based on sensor thresholds.",
+            severity=severity,
+            root_cause=(
+                f"Soil moisture is at {s.soil_moisture}% (critical threshold: 30%). "
+                f"Temperature is {s.temperature}°C. Nitrogen: {s.nitrogen} mg/kg."
+            ),
+            recommendations=[
+                "Irrigate immediately — 45 minutes for full field coverage.",
+                "Apply nitrogen fertilizer within 24 hours.",
+                "Monitor soil moisture daily until recovery.",
+            ],
+            actions_taken=actions_taken,
+            report_for_farmer=(
+                f"⚠️ Offline simulation: Soil moisture critically low at {s.soil_moisture}%. "
+                "Irrigation has been triggered automatically."
+            ),
+            confidence_score=0.80,
+        )
+
+    def _mock_plant_disease(self, request: PlantDiseaseRequest) -> PlantDiseaseResult:
+        """Returns a scenario-aware mock PlantDiseaseResult when Gemini API is unavailable."""
+        s = request.sensor_data
+        actions_taken = []
+        has_image = bool(request.image_path or request.image_base64)
+
+        # Determine scenario by sensor thresholds
+        if s.soil_moisture < 25:
+            # late-blight scenario: drought priority
+            priority_mode = PriorityMode.IRRIGATION
+            visual_finding = "[OFFLINE] Dark brown lesions with water-soaked borders visible on leaves — consistent with Late Blight (Phytophthora infestans)."
+            sensor_finding = f"Soil moisture critically low at {s.soil_moisture}% — drought stress overrides disease treatment priority."
+            priority_reason = "Despite visible disease symptoms, severe drought stress is the immediate threat. Irrigation must come first."
+            diagnosis = "[OFFLINE MODE] Tomato Late Blight confirmed, but drought stress is the priority concern."
+            severity = SeverityLevel.HIGH
+            root_cause = f"Soil moisture has dropped to {s.soil_moisture}% (critical: <25%). Late Blight pathogen thrives in heat stress conditions."
+            recommendations = [
+                "Irrigate immediately — 45 minutes full field coverage.",
+                "After irrigation, apply copper-based fungicide for Late Blight.",
+                "Remove and destroy heavily infected leaves.",
+                "Avoid overhead irrigation to reduce leaf wetness.",
+                "Monitor daily and re-apply fungicide after 7 days.",
+            ]
+            seasonal_pattern = "Late Blight risk increases in hot, dry periods followed by high humidity."
+            _, action = execute_iot_action("activate_irrigation", {
+                "zone": "full field", "duration_minutes": 45,
+                "reason": f"Soil moisture critically low at {s.soil_moisture}%",
+            })
+            actions_taken.append(action)
+
+        elif s.nitrogen < 20:
+            # nutrient-deficiency scenario
+            priority_mode = PriorityMode.NUTRIENT
+            visual_finding = "[OFFLINE] Interveinal chlorosis and early blight spots detected on lower leaves."
+            sensor_finding = f"Nitrogen at {s.nitrogen} mg/kg — well below the 20 mg/kg threshold."
+            priority_reason = "Yellowing is primarily caused by nitrogen deficiency, not the disease. Nutrient correction is the priority."
+            diagnosis = "[OFFLINE MODE] Nitrogen deficiency with Early Blight secondary infection."
+            severity = SeverityLevel.MEDIUM
+            root_cause = f"Nitrogen: {s.nitrogen} mg/kg (threshold: 20). Deficiency weakens plant immunity, accelerating Early Blight spread."
+            recommendations = [
+                "Apply nitrogen-rich fertilizer (urea or ammonium nitrate) immediately.",
+                "After 48h, apply mancozeb-based fungicide for Early Blight.",
+                "Increase irrigation frequency to aid nutrient absorption.",
+                "Conduct soil pH test — low pH limits nitrogen uptake.",
+                "Re-check nitrogen levels in 7 days.",
+            ]
+            seasonal_pattern = "Nitrogen depletion is common mid-season without supplemental fertilisation."
+            _, action = execute_iot_action("apply_fertilizer", {
+                "nutrient_type": "nitrogen", "amount_ml": 500,
+                "reason": f"Nitrogen deficiency: {s.nitrogen} mg/kg",
+            })
+            actions_taken.append(action)
+
+        else:
+            # healthy scenario
+            priority_mode = PriorityMode.COMBINED
+            visual_finding = "[OFFLINE] Leaves appear green and healthy — no visible disease lesions or discolouration detected."
+            sensor_finding = f"All sensors within normal range. Moisture: {s.soil_moisture}%, Nitrogen: {s.nitrogen} mg/kg."
+            priority_reason = "No action required. All parameters are healthy."
+            diagnosis = "[OFFLINE MODE] Plant is healthy. No disease or deficiency detected."
+            severity = SeverityLevel.LOW
+            root_cause = "No abnormalities detected in visual inspection or sensor data."
+            recommendations = [
+                "Continue current irrigation and fertilisation schedule.",
+                "Inspect leaves weekly as a preventive measure.",
+                "Ensure good air circulation between plants.",
+            ]
+            seasonal_pattern = None
+
+        return PlantDiseaseResult(
+            field_id=request.field_id,
+            visual_finding=visual_finding + ("" if has_image else " (No image provided — visual analysis skipped.)"),
+            sensor_finding=sensor_finding,
+            priority_mode=priority_mode,
+            priority_reason=priority_reason,
+            diagnosis=diagnosis,
+            severity=severity,
+            root_cause=root_cause,
+            recommendations=recommendations,
+            actions_taken=actions_taken,
+            report_for_farmer=(
+                f"⚠️ Offline simulation mode (API quota exceeded).\n"
+                f"Diagnosis: {diagnosis}\n"
+                f"Priority: {priority_reason}\n"
+                f"Top action: {recommendations[0]}"
+            ),
+            confidence_score=0.82,
+            seasonal_pattern=seasonal_pattern,
+        )

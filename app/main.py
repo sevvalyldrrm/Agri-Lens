@@ -23,6 +23,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.models import (
@@ -76,6 +77,13 @@ app = FastAPI(
         "Analyses field video, audio, and IoT sensor data using the Gemini API."
     ),
     lifespan=lifespan,
+)
+
+# Serve demo images statically at /assets/demo_images/
+app.mount(
+    "/assets",
+    StaticFiles(directory=Path(__file__).parent.parent / "assets"),
+    name="assets",
 )
 
 
@@ -307,19 +315,26 @@ async def demo_plant_disease(scenario: str):
 # ---------------------------------------------------------------------------
 
 @app.get("/demo/live", tags=["demo"])
-async def demo_live_stream():
+async def demo_live_stream(question: str | None = None):
     """
     Real-time SSE stream of the full analysis pipeline.
 
     Connect with:  curl -N http://localhost:8000/demo/live
     Or open:       http://localhost:8000/demo/live-ui
+
+    Optional query param:
+      ?question=Why are my leaves yellow?
     """
     service = _require_service()
     import json
 
+    base_request = build_live_stream_request()
+    if question:
+        base_request.question = question
+
     async def event_generator():
         try:
-            async for event_json in service.analyze_field_stream(build_live_stream_request()):
+            async for event_json in service.analyze_field_stream(base_request):
                 yield f"data: {event_json}\n\n"
         except Exception as e:
             error = json.dumps({"event": "error", "message": str(e)})
