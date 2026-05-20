@@ -85,16 +85,6 @@ const Api = {
     return res.json();
   },
 
-  /* ── GET /demo/live  (SSE stream)
-     Returns an EventSource for real-time streaming events.
-     Each message: { event, content/message/data }
-  ── */
-  openLiveStream(question = '') {
-    const url = question
-      ? `${BASE_URL}/demo/live?question=${encodeURIComponent(question)}`
-      : `${BASE_URL}/demo/live`;
-    return new EventSource(url);
-  },
 };
 
 export default Api;

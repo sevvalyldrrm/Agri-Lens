@@ -2,8 +2,7 @@
 Agri-Lens — Pre-built demo scenarios.
 
 Each builder function returns a fully constructed request object
-ready to be passed to GeminiService. Keeping scenario data here
-prevents endpoint handlers from being polluted with hardcoded values.
+ready to be passed to GeminiService.
 """
 
 from datetime import datetime, timedelta
@@ -14,44 +13,8 @@ from app.models import (
 )
 
 # ---------------------------------------------------------------------------
-#  Field analysis demos
+#  Live stream demo
 # ---------------------------------------------------------------------------
-
-def build_drought_stress_request() -> AnalysisRequest:
-    """
-    Scenario: drought stress — soil moisture critically low.
-    Used by POST /analyze/demo and GET /demo/live.
-    """
-    sensor_data = IoTSensorData(
-        field_id="FIELD-001",
-        soil_moisture=18.5,
-        temperature=34.2,
-        humidity=45.0,
-        ph_level=6.8,
-        nitrogen=22.0,
-        phosphorus=18.5,
-        potassium=24.0,
-        light_intensity=75000.0,
-        timestamp=datetime.now().isoformat(),
-    )
-
-    historical_logs = [
-        HistoricalLog(
-            date=(datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d"),
-            soil_moisture=45.0 - i * 3.5,
-            temperature=28.0 + i * 0.8,
-            ph_level=6.8,
-            event="irrigation" if i == 6 else None,
-        )
-        for i in range(7)
-    ]
-
-    return AnalysisRequest(
-        field_id="FIELD-001",
-        question="Why are the leaves turning yellow and starting to droop? What should I do?",
-        sensor_data=sensor_data,
-        historical_logs=historical_logs,
-    )
 
 
 def build_live_stream_request() -> AnalysisRequest:
