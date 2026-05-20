@@ -3,179 +3,240 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Agri-Lens — Demo</title>
+  <title>Agri-Lens — Live Demo</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0a0f0a; color: #e2f0e2; min-height: 100vh; padding: 2rem; }
-    header { text-align: center; margin-bottom: 2rem; }
-    header h1 { font-size: 2.4rem; color: #4ade80; letter-spacing: 2px; }
-    header p  { color: #86efac; margin-top: .4rem; font-size: 1rem; }
-    .tabs { display: flex; gap: .6rem; margin-bottom: 1.5rem; justify-content: center; }
-    .tab-btn { background: #111b11; border: 1px solid #1f3b1f; color: #86efac; border-radius: 8px; padding: .55rem 1.3rem; font-size: .9rem; cursor: pointer; transition: all .2s; }
-    .tab-btn:hover  { background: #1a2e1a; }
-    .tab-btn.active { background: #16a34a; color: #fff; border-color: #16a34a; }
-    .panel { display: none; }
-    .panel.active { display: block; }
-    #sensors { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .8rem; margin-bottom: 1.5rem; }
-    .sensor-card { background: #111b11; border: 1px solid #1f3b1f; border-radius: 10px; padding: .9rem; text-align: center; }
-    .sensor-card .label { font-size: .7rem; color: #6b8f6b; text-transform: uppercase; }
-    .sensor-card .value { font-size: 1.5rem; font-weight: 700; color: #4ade80; margin-top: .25rem; }
-    .sensor-card.alert .value { color: #f87171; }
-    .ask-box { background: #111b11; border: 1px solid #1f3b1f; border-radius: 12px; padding: 1.2rem; margin-bottom: 1.2rem; }
-    .ask-box label { font-size: .8rem; color: #6b8f6b; text-transform: uppercase; display: block; margin-bottom: .5rem; }
-    .ask-box textarea { width: 100%; background: #0a0f0a; border: 1px solid #1f3b1f; border-radius: 8px; color: #e2f0e2; font-size: .95rem; padding: .7rem .9rem; resize: vertical; min-height: 70px; outline: none; font-family: inherit; }
-    .ask-box textarea:focus { border-color: #16a34a; }
-    .scenarios { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .8rem; margin-bottom: 1.5rem; }
-    .scenario-card { background: #111b11; border: 2px solid #1f3b1f; border-radius: 12px; padding: 1rem; cursor: pointer; transition: all .2s; }
-    .scenario-card:hover   { border-color: #16a34a; background: #142014; }
-    .scenario-card.selected{ border-color: #4ade80; background: #0d2010; }
-    .scenario-card .sc-title { font-weight: 700; color: #4ade80; margin-bottom: .3rem; }
-    .sc-tag { display: inline-block; font-size: .7rem; border-radius: 4px; padding: .15rem .45rem; margin-bottom: .4rem; font-weight: 700; }
-    .tag-high   { background:#7c2d12; color:#fb923c; }
-    .tag-medium { background:#713f12; color:#fde68a; }
-    .tag-low    { background:#14532d; color:#86efac; }
-    .scenario-card .sc-desc { font-size: .82rem; color: #86efac; line-height: 1.4; }
-    .scenario-card .sc-img { width: 100%; height: 90px; object-fit: cover; border-radius: 6px; margin-bottom: .5rem; opacity: .85; transition: opacity .2s; }
-    .scenario-card:hover .sc-img, .scenario-card.selected .sc-img { opacity: 1; }
-    .run-btn { display: block; width: 100%; max-width: 400px; margin: 0 auto 1.5rem; background: #16a34a; color: #fff; border: none; border-radius: 10px; padding: .85rem 2rem; font-size: 1.05rem; cursor: pointer; transition: background .2s; }
-    .run-btn:hover    { background: #15803d; }
-    .run-btn:disabled { background: #374137; color:#6b8f6b; cursor:default; }
-    #log, #log2 { background: #0d150d; border: 1px solid #1f3b1f; border-radius: 12px; padding: 1.2rem; height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: .83rem; margin-bottom: 1.5rem; }
-    .log-entry { padding: .3rem 0; border-bottom: 1px solid #1a2e1a; line-height: 1.5; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#070d07; --bg1:#0d160d; --bg2:#111f11; --border:#1f3b1f;
+      --green:#4ade80; --green2:#16a34a; --text:#e2f0e2; --muted:#6b8f6b; --soft:#86efac;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(7,13,7,.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .75rem 2rem;
+    }
+    .nav-brand { display: flex; align-items: center; gap: .6rem; font-weight: 800; font-size: 1.1rem; color: var(--green); letter-spacing: 1px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 1.8s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
+    .model-badge { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: .2rem .6rem; font-size: .72rem; color: var(--muted); }
+    .page { max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .hero { text-align: center; padding: 2.5rem 0 2rem; }
+    .hero h1 { font-size: 2.8rem; font-weight: 900; background: linear-gradient(135deg, #4ade80, #86efac); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 2px; }
+    .hero p { color: var(--muted); margin-top: .6rem; font-size: 1rem; }
+    .hero-badges { display: flex; gap: .5rem; justify-content: center; margin-top: 1rem; flex-wrap: wrap; }
+    .badge { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: .3rem .9rem; font-size: .75rem; color: var(--soft); }
+    .tabs { display: flex; gap: .5rem; margin-bottom: 1.8rem; border-bottom: 1px solid var(--border); padding-bottom: .75rem; }
+    .tab-btn { background: transparent; border: 1px solid transparent; color: var(--muted); border-radius: 8px; padding: .55rem 1.4rem; font-size: .9rem; cursor: pointer; transition: all .2s; }
+    .tab-btn:hover  { background: var(--bg2); color: var(--soft); }
+    .tab-btn.active { background: var(--bg2); border-color: var(--green2); color: var(--green); font-weight: 700; }
+    .panel { display: none; } .panel.active { display: block; }
+    .section-label { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: .7rem; }
+    .sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .7rem; margin-bottom: 1.4rem; }
+    .sensor-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: .9rem .7rem; text-align: center; }
+    .sensor-card.alert { border-color: #7c2d12; }
+    .sensor-card .s-label { font-size: .65rem; color: var(--muted); text-transform: uppercase; }
+    .sensor-card .s-value { font-size: 1.35rem; font-weight: 800; color: var(--green); margin-top: .2rem; }
+    .sensor-card.alert .s-value { color: #fb923c; }
+    .sensor-card .s-unit { font-size: .65rem; color: var(--muted); }
+    .scenarios { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .9rem; margin-bottom: 1.4rem; }
+    .sc-card { background: var(--bg2); border: 2px solid var(--border); border-radius: 14px; padding: 1rem; cursor: pointer; transition: all .2s; }
+    .sc-card:hover    { border-color: var(--green2); background: #0d1f0d; }
+    .sc-card.selected { border-color: var(--green); background: #0b1c0b; box-shadow: 0 0 0 3px rgba(74,222,128,.12); }
+    .sc-card img { width: 100%; height: 85px; object-fit: cover; border-radius: 8px; margin-bottom: .6rem; opacity: .85; transition: opacity .2s; }
+    .sc-card:hover img, .sc-card.selected img { opacity: 1; }
+    .sc-tag { display: inline-block; font-size: .68rem; border-radius: 4px; padding: .15rem .5rem; font-weight: 700; margin-bottom: .4rem; }
+    .tag-HIGH { background:#7c2d12; color:#fb923c; }
+    .tag-MEDIUM { background:#713f12; color:#fde68a; }
+    .tag-HEALTHY { background:#14532d; color:#86efac; }
+    .sc-title { font-weight: 700; color: var(--green); font-size: .92rem; margin-bottom: .25rem; }
+    .sc-desc { font-size: .78rem; color: var(--soft); line-height: 1.45; }
+    .input-box { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
+    .input-box label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: .5rem; }
+    .input-box textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: .92rem; padding: .65rem .9rem; resize: vertical; min-height: 68px; outline: none; font-family: inherit; transition: border-color .2s; }
+    .input-box textarea:focus { border-color: var(--green2); }
+    .input-box textarea::placeholder { color: #3d5c3d; }
+    .run-btn { display: flex; align-items: center; justify-content: center; gap: .5rem; width: 100%; max-width: 420px; margin: 0 auto 1.6rem; background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; border: none; border-radius: 10px; padding: .9rem 2rem; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all .2s; letter-spacing: .5px; }
+    .run-btn:hover    { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(22,163,74,.35); }
+    .run-btn:disabled { background: #1f3b1f; color: var(--muted); cursor: default; transform: none; box-shadow: none; }
+    .spinner-btn { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .log-title { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: .4rem; display: flex; align-items: center; gap: .5rem; }
+    .gemini-tag { background: linear-gradient(135deg,#1a1a4a,#2d1050); border: 1px solid #4c1d95; border-radius: 4px; padding: .1rem .45rem; font-size: .65rem; color: #c084fc; }
+    .log-box { background: #030803; border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; height: 320px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: .8rem; margin-bottom: 1.5rem; }
+    .log-box::-webkit-scrollbar { width: 5px; }
+    .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .log-entry { padding: .28rem 0; border-bottom: 1px solid #0f1f0f; line-height: 1.55; display: flex; align-items: flex-start; gap: .5rem; }
     .log-entry:last-child { border-bottom: none; }
-    .tag { display: inline-block; padding: .1rem .4rem; border-radius: 4px; font-size: .68rem; font-weight: 700; margin-right: .4rem; text-transform: uppercase; }
-    .tag-start       { background:#1e3a5f; color:#93c5fd; }
-    .tag-thinking    { background:#2d2d0a; color:#fde68a; }
+    .log-time { color: #2a4a2a; font-size: .7rem; min-width: 58px; padding-top: .05rem; }
+    .log-tag { display: inline-block; padding: .1rem .38rem; border-radius: 4px; font-size: .65rem; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
+    .tag-start    { background:#1e3a5f; color:#93c5fd; }
+    .tag-thinking { background:#2d2d0a; color:#fde68a; }
     .tag-tool_call   { background:#3b1f0a; color:#fb923c; }
     .tag-tool_result { background:#0a2e1a; color:#4ade80; }
-    .tag-diagnosis   { background:#2d1050; color:#c084fc; }
-    .tag-error       { background:#450a0a; color:#fca5a5; }
-    .result-card { display: none; background: #0d1f1a; border: 1px solid #166534; border-radius: 14px; padding: 1.5rem; }
-    .result-card h2 { color: #4ade80; margin-bottom: 1rem; font-size: 1.2rem; }
-    .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    .result-block { background: #111b11; border-radius: 8px; padding: 1rem; }
-    .result-block h3 { color: #86efac; font-size: .75rem; text-transform: uppercase; margin-bottom: .4rem; }
-    .result-block p  { font-size: .9rem; line-height: 1.6; }
-    .sev-badge { display: inline-block; padding: .25rem .8rem; border-radius: 20px; font-weight: 700; font-size: .82rem; }
-    .sev-low      { background:#14532d; color:#86efac; }
-    .sev-medium   { background:#713f12; color:#fde68a; }
-    .sev-high     { background:#7c2d12; color:#fb923c; }
-    .sev-critical { background:#450a0a; color:#fca5a5; }
-    .priority-badge { display:inline-block; padding:.25rem .8rem; border-radius:20px; font-weight:700; font-size:.82rem; background:#1e3a5f; color:#93c5fd; }
+    .tag-tool-call   { background:#3b1f0a; color:#fb923c; }
+    .tag-tool-result { background:#0a2e1a; color:#4ade80; }
+    .tag-diagnosis { background:#2d1050; color:#c084fc; }
+    .tag-error     { background:#450a0a; color:#fca5a5; }
+    .tag-info      { background:#0a1e2e; color:#7dd3fc; }
+    .log-msg { color: #c0d8c0; flex: 1; word-break: break-word; }
+    .result-card { display: none; background: linear-gradient(135deg, #0b1c0b, #0d200d); border: 1px solid #166534; border-radius: 16px; padding: 1.8rem; animation: fadeIn .5s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    .result-card h2 { color: var(--green); margin-bottom: 1.2rem; font-size: 1.15rem; }
+    .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .r-block { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+    .r-block h3 { color: var(--soft); font-size: .7rem; text-transform: uppercase; letter-spacing: .5px; margin-bottom: .5rem; }
+    .r-block p  { font-size: .87rem; line-height: 1.65; color: var(--text); }
+    .full-block { grid-column: 1 / -1; }
+    .sev-badge { display: inline-block; padding: .25rem .8rem; border-radius: 20px; font-weight: 700; font-size: .78rem; margin-top: .4rem; }
+    .sev-low    { background:#14532d; color:#86efac; }
+    .sev-medium { background:#713f12; color:#fde68a; }
+    .sev-high   { background:#7c2d12; color:#fb923c; }
+    .sev-critical{ background:#450a0a; color:#fca5a5; }
+    .priority-badge { display:inline-block; padding:.25rem .8rem; border-radius:20px; font-weight:700; font-size:.78rem; background:#1e3a5f; color:#93c5fd; }
     .rec-list { list-style: none; }
-    .rec-list li::before { content: "-> "; color: #4ade80; }
-    .rec-list li { padding: .2rem 0; font-size: .88rem; }
-    .action-chip { display: inline-block; background: #1a3a1a; border: 1px solid #166534; border-radius: 6px; padding: .25rem .6rem; font-size: .76rem; margin: .2rem .15rem 0 0; color: #4ade80; }
-    .conf-bar-bg { background:#1f3b1f; border-radius:99px; height:10px; overflow:hidden; margin-top:.4rem; }
-    .conf-bar-fill { background:linear-gradient(90deg,#16a34a,#4ade80); height:100%; border-radius:99px; transition:width 1s ease; }
-    .conf-label { font-size:.78rem; color:#86efac; margin-top:.25rem; }
-    @media (max-width: 600px) { .result-grid { grid-template-columns: 1fr; } }
+    .rec-list li { padding: .25rem 0; font-size: .86rem; border-bottom: 1px solid var(--border); display: flex; gap: .4rem; }
+    .rec-list li:last-child { border: none; }
+    .rec-list li::before { content: "→"; color: var(--green); flex-shrink: 0; }
+    .action-chip { display: inline-block; background: #0a2010; border: 1px solid #166534; border-radius: 6px; padding: .2rem .55rem; font-size: .74rem; margin: .15rem .1rem 0 0; color: var(--green); font-family: monospace; }
+    .conf-wrap { margin-top: .5rem; }
+    .conf-bar-bg { background:#1f3b1f; border-radius:99px; height:8px; overflow:hidden; }
+    .conf-bar-fill { background:linear-gradient(90deg,#16a34a,#4ade80); height:100%; border-radius:99px; transition:width 1.2s ease; }
+    .conf-label { font-size:.75rem; color:var(--muted); margin-top:.3rem; }
+    .gemini-proof { display: flex; align-items: center; gap: .7rem; background: linear-gradient(135deg,#0d0d2e,#1a0d2e); border: 1px solid #4c1d95; border-radius: 10px; padding: .8rem 1.1rem; margin-bottom: 1.2rem; font-size: .8rem; color: #c084fc; }
+    .gemini-proof strong { color: #e9d5ff; }
+    @media (max-width: 700px) { .result-grid { grid-template-columns: 1fr; } .hero h1 { font-size: 2rem; } }
   </style>
 </head>
 <body>
 
-<header>
-  <h1>&#127807; Agri-Lens</h1>
-  <p>AI Agronomist — Real-Time Field Analysis</p>
-</header>
+<nav>
+  <div class="nav-brand">🌿 Agri-Lens</div>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <div style="display:flex;align-items:center;gap:.45rem;font-size:.82rem;color:var(--soft);"><div class="dot"></div> Live API</div>
+    <div class="model-badge" id="model-badge">gemini-2.5-flash</div>
+  </div>
+</nav>
 
-<div class="tabs">
-  <button class="tab-btn active" onclick="switchTab('field', this)">&#127807; Field Analysis</button>
-  <button class="tab-btn"        onclick="switchTab('disease', this)">&#128300; Plant Disease</button>
-</div>
-
-<!-- TAB 1: Field Analysis -->
-<div id="tab-field" class="panel active">
-  <div id="sensors">
-    <div class="sensor-card alert"><div class="label">Soil Moisture</div><div class="value">18.5%</div></div>
-    <div class="sensor-card"><div class="label">Temperature</div><div class="value">34.2°C</div></div>
-    <div class="sensor-card"><div class="label">Air Humidity</div><div class="value">47.0%</div></div>
-    <div class="sensor-card"><div class="label">pH</div><div class="value">6.8</div></div>
-    <div class="sensor-card alert"><div class="label">Nitrogen (N)</div><div class="value">17.5 mg/kg</div></div>
-    <div class="sensor-card"><div class="label">History</div><div class="value">7 days</div></div>
+<div class="page">
+  <div class="hero">
+    <h1>🌾 Agri-Lens AI Demo</h1>
+    <p>Real-time field analysis powered by Gemini Multimodal API + IoT sensor fusion</p>
+    <div class="hero-badges">
+      <span class="badge">🤖 Gemini 2.5 Flash</span>
+      <span class="badge">📡 IoT Function Calling</span>
+      <span class="badge">🖼️ Vision + Sensor Fusion</span>
+      <span class="badge">🎙️ Voice Analysis</span>
+      <span class="badge">📊 Long Context History</span>
+    </div>
   </div>
 
-  <div class="ask-box">
-    <label>&#9997;&#65039; Ask your question (leave empty to run the default scenario)</label>
-    <textarea id="fieldQuestion" placeholder="e.g. Why are the leaves turning yellow and what should I do?
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('field',this)">📡 Field Analysis (SSE Live)</button>
+    <button class="tab-btn"        onclick="switchTab('disease',this)">🔬 Plant Disease Vision</button>
+  </div>
+
+  <!-- ═══ TAB 1: FIELD ANALYSIS ═══ -->
+  <div id="tab-field" class="panel active">
+    <div class="section-label">📡 Live IoT Sensor Snapshot — FIELD-001</div>
+    <div class="sensor-grid">
+      <div class="sensor-card alert"><div class="s-label">Soil Moisture</div><div class="s-value">18.5</div><div class="s-unit">% ⚠️</div></div>
+      <div class="sensor-card"><div class="s-label">Temperature</div><div class="s-value">34.2</div><div class="s-unit">°C</div></div>
+      <div class="sensor-card"><div class="s-label">Humidity</div><div class="s-value">47.0</div><div class="s-unit">%</div></div>
+      <div class="sensor-card"><div class="s-label">pH</div><div class="s-value">6.8</div><div class="s-unit"></div></div>
+      <div class="sensor-card alert"><div class="s-label">Nitrogen</div><div class="s-value">17.5</div><div class="s-unit">mg/kg ⚠️</div></div>
+      <div class="sensor-card"><div class="s-label">History</div><div class="s-value">7</div><div class="s-unit">days</div></div>
+    </div>
+
+    <div class="input-box">
+      <label>✏️ Ask Gemini — or leave empty for default drought scenario</label>
+      <textarea id="fieldQuestion" placeholder="e.g. Why are the leaves turning yellow and what should I do?
 e.g. When should the irrigation system be activated?
-e.g. Can I harvest this week?"></textarea>
-  </div>
+e.g. Is it safe to harvest this week?"></textarea>
+    </div>
 
-  <button class="run-btn" id="fieldBtn" onclick="startFieldDemo()">&#9654; Run Analysis</button>
-  <div id="log"><span style="color:#3d5c3d">// Events will appear here...</span></div>
+    <button class="run-btn" id="fieldBtn" onclick="startFieldDemo()"><span>▶</span> Run Live Analysis</button>
 
-  <div class="result-card" id="fieldResult">
-    <h2>&#128300; Diagnosis Result</h2>
-    <div class="result-grid">
-      <div class="result-block"><h3>Diagnosis</h3><p id="fr-diagnosis"></p><br/><span id="fr-severity" class="sev-badge"></span></div>
-      <div class="result-block"><h3>Root Cause</h3><p id="fr-rootcause"></p></div>
-      <div class="result-block"><h3>Recommendations</h3><ul class="rec-list" id="fr-recs"></ul></div>
-      <div class="result-block">
-        <h3>IoT Actions Triggered</h3><div id="fr-actions"></div><br/>
-        <h3>Confidence Score</h3>
-        <div class="conf-bar-bg"><div class="conf-bar-fill" id="fr-conf-bar" style="width:0%"></div></div>
-        <div class="conf-label" id="fr-conf-label">-</div>
+    <div class="log-title">🖥️ Gemini API — Real-Time Event Log <span class="gemini-tag">SSE STREAM</span></div>
+    <div class="log-box" id="log"><span style="color:#2a4a2a">// Waiting for analysis to start…</span></div>
+
+    <div class="result-card" id="fieldResult">
+      <h2>📊 Diagnosis Result</h2>
+      <div class="result-grid">
+        <div class="r-block"><h3>Diagnosis</h3><p id="fr-diagnosis"></p><div id="fr-severity" style="margin-top:.4rem"></div></div>
+        <div class="r-block"><h3>Root Cause</h3><p id="fr-rootcause"></p></div>
+        <div class="r-block"><h3>Recommendations</h3><ul class="rec-list" id="fr-recs"></ul></div>
+        <div class="r-block">
+          <h3>⚡ IoT Actions Triggered</h3><div id="fr-actions"></div>
+          <br/><h3>Confidence Score</h3>
+          <div class="conf-wrap"><div class="conf-bar-bg"><div class="conf-bar-fill" id="fr-conf-bar" style="width:0%"></div></div><div class="conf-label" id="fr-conf-label">-</div></div>
+        </div>
+        <div class="r-block full-block"><h3>🌾 Farmer Report</h3><p id="fr-report"></p></div>
       </div>
     </div>
-    <div class="result-block" style="margin-top:1rem"><h3>Farmer Report</h3><p id="fr-report"></p></div>
-  </div>
-</div>
-
-<!-- TAB 2: Plant Disease -->
-<div id="tab-disease" class="panel">
-  <p style="text-align:center; color:#86efac; margin-bottom:1rem; font-size:.9rem;">
-    Select a scenario — Gemini analyses the leaf image and sensor data together
-  </p>
-
-  <div class="scenarios">
-    <div class="scenario-card selected" id="sc-late-blight" onclick="selectScenario('late-blight')">
-      <img class="sc-img" src="/assets/demo_images/late_blight.jpg" alt="Late Blight"/>
-      <div class="sc-tag tag-high">HIGH RISK</div>
-      <div class="sc-title">&#127813; Late Blight</div>
-      <div class="sc-desc">Tomato late blight + drought stress.<br>Soil moisture: 20% → Irrigation priority</div>
-    </div>
-    <div class="scenario-card" id="sc-nutrient-deficiency" onclick="selectScenario('nutrient-deficiency')">
-      <img class="sc-img" src="/assets/demo_images/early_blight.jpg" alt="Early Blight"/>
-      <div class="sc-tag tag-medium">MEDIUM RISK</div>
-      <div class="sc-title">&#127807; Nutrient Deficiency</div>
-      <div class="sc-desc">Early blight + nitrogen deficiency.<br>N: 14 mg/kg → Fertiliser priority</div>
-    </div>
-    <div class="scenario-card" id="sc-healthy" onclick="selectScenario('healthy')">
-      <img class="sc-img" src="/assets/demo_images/healthy.jpg" alt="Healthy"/>
-      <div class="sc-tag tag-low">HEALTHY</div>
-      <div class="sc-title">&#9989; Healthy Plant</div>
-      <div class="sc-desc">Normal sensors + healthy leaf.<br>Moisture: 55% → Clean report</div>
-    </div>
   </div>
 
-  <div class="ask-box">
-    <label>&#9997;&#65039; Additional question (optional)</label>
-    <textarea id="diseaseQuestion" placeholder="e.g. Can this disease spread to neighbouring fields?"></textarea>
-  </div>
-
-  <button class="run-btn" id="diseaseBtn" onclick="startDiseaseDemo()">&#9654; Run Scenario</button>
-  <div id="log2"><span style="color:#3d5c3d">// Events will appear here...</span></div>
-
-  <div class="result-card" id="diseaseResult">
-    <h2>&#128300; Plant Disease Diagnosis</h2>
-    <div class="result-grid">
-      <div class="result-block"><h3>Visual Finding</h3><p id="dr-visual"></p></div>
-      <div class="result-block"><h3>Sensor Finding</h3><p id="dr-sensor"></p></div>
-      <div class="result-block"><h3>Diagnosis</h3><p id="dr-diagnosis"></p><br/><span id="dr-severity" class="sev-badge"></span></div>
-      <div class="result-block">
-        <h3>Priority Mode</h3><span id="dr-priority" class="priority-badge"></span><br/><br/>
-        <p id="dr-priority-reason" style="font-size:.85rem; color:#86efac;"></p>
+  <!-- ═══ TAB 2: PLANT DISEASE ═══ -->
+  <div id="tab-disease" class="panel">
+    <p style="color:var(--muted);font-size:.88rem;margin-bottom:1.2rem;">Select a scenario — Gemini analyses the leaf image together with real-time IoT sensor data</p>
+    <div class="scenarios">
+      <div class="sc-card selected" id="sc-late-blight" onclick="selectScenario('late-blight')">
+        <img src="/assets/demo_images/late_blight.jpg" alt="Late Blight" onerror="this.style.display='none'"/>
+        <div class="sc-tag tag-HIGH">HIGH RISK</div>
+        <div class="sc-title">🍅 Late Blight</div>
+        <div class="sc-desc">Tomato late blight + drought stress.<br/>Soil: 20% → Irrigation priority</div>
       </div>
-      <div class="result-block"><h3>Recommendations</h3><ul class="rec-list" id="dr-recs"></ul></div>
-      <div class="result-block">
-        <h3>IoT Actions Triggered</h3><div id="dr-actions"></div><br/>
-        <h3>Confidence Score</h3>
-        <div class="conf-bar-bg"><div class="conf-bar-fill" id="dr-conf-bar" style="width:0%"></div></div>
-        <div class="conf-label" id="dr-conf-label">-</div>
+      <div class="sc-card" id="sc-nutrient-deficiency" onclick="selectScenario('nutrient-deficiency')">
+        <img src="/assets/demo_images/early_blight.jpg" alt="Nutrient Def." onerror="this.style.display='none'"/>
+        <div class="sc-tag tag-MEDIUM">MEDIUM RISK</div>
+        <div class="sc-title">🌿 Nutrient Deficiency</div>
+        <div class="sc-desc">Early blight + nitrogen deficiency.<br/>N: 14 mg/kg → Fertiliser priority</div>
+      </div>
+      <div class="sc-card" id="sc-healthy" onclick="selectScenario('healthy')">
+        <img src="/assets/demo_images/healthy.jpg" alt="Healthy" onerror="this.style.display='none'"/>
+        <div class="sc-tag tag-HEALTHY">HEALTHY</div>
+        <div class="sc-title">✅ Healthy Plant</div>
+        <div class="sc-desc">Normal sensors + healthy leaf.<br/>Moisture: 55% → Clean report</div>
       </div>
     </div>
-    <div class="result-block" style="margin-top:1rem"><h3>Farmer Report</h3><p id="dr-report"></p></div>
+
+    <div class="input-box">
+      <label>✏️ Additional question (optional)</label>
+      <textarea id="diseaseQuestion" placeholder="e.g. Can this disease spread to neighbouring fields?"></textarea>
+    </div>
+
+    <button class="run-btn" id="diseaseBtn" onclick="startDiseaseDemo()"><span>▶</span> Run Scenario</button>
+
+    <div class="log-title">🖥️ Gemini API — Real-Time Event Log <span class="gemini-tag">VISION + SENSOR FUSION</span></div>
+    <div class="log-box" id="log2"><span style="color:#2a4a2a">// Waiting for scenario to run…</span></div>
+
+    <div class="result-card" id="diseaseResult">
+      <h2>🔬 Plant Disease Diagnosis</h2>
+      <div class="gemini-proof">
+        <span style="font-size:1.3rem">🤖</span>
+        <div><strong>Gemini Multimodal Analysis</strong> — Leaf image processed via Vision API, cross-queried with IoT sensor data using Function Calling</div>
+      </div>
+      <div class="result-grid">
+        <div class="r-block"><h3>👁️ Visual Finding (Image)</h3><p id="dr-visual"></p></div>
+        <div class="r-block"><h3>📡 Sensor Finding (IoT)</h3><p id="dr-sensor"></p></div>
+        <div class="r-block"><h3>🩺 Diagnosis</h3><p id="dr-diagnosis"></p><div id="dr-severity" style="margin-top:.4rem"></div></div>
+        <div class="r-block">
+          <h3>🎯 Priority Mode</h3>
+          <div id="dr-priority" class="priority-badge" style="margin-bottom:.6rem"></div>
+          <p id="dr-priority-reason" style="font-size:.82rem;color:var(--soft);line-height:1.5;margin-top:.5rem"></p>
+        </div>
+        <div class="r-block"><h3>📋 Recommendations</h3><ul class="rec-list" id="dr-recs"></ul></div>
+        <div class="r-block">
+          <h3>⚡ IoT Actions Triggered</h3><div id="dr-actions"></div>
+          <br/><h3>Confidence Score</h3>
+          <div class="conf-wrap"><div class="conf-bar-bg"><div class="conf-bar-fill" id="dr-conf-bar" style="width:0%"></div></div><div class="conf-label" id="dr-conf-label">-</div></div>
+        </div>
+        <div class="r-block full-block"><h3>🌾 Farmer Report</h3><p id="dr-report"></p></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -190,51 +251,59 @@ e.g. Can I harvest this week?"></textarea>
   }
 
   function selectScenario(s) {
-    document.querySelectorAll('.scenario-card').forEach(c => c.classList.remove('selected'));
+    document.querySelectorAll('.sc-card').forEach(c => c.classList.remove('selected'));
     document.getElementById('sc-' + s).classList.add('selected');
     selectedScenario = s;
   }
 
+  function nowStr() {
+    const d = new Date();
+    return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+  }
+
   function appendLog(logId, data) {
     const log = document.getElementById(logId);
-    const div = document.createElement('div');
-    div.className = 'log-entry';
-    const tag = document.createElement('span');
-    tag.className = 'tag tag-' + data.event;
-    tag.textContent = data.event;
-    const text = data.message || (data.question ? 'Field: ' + data.field_id + ' - "' + data.question + '"' : JSON.stringify(data).slice(0, 140) + '...');
-    div.appendChild(tag);
-    div.appendChild(document.createTextNode(' ' + text));
-    log.appendChild(div);
+    if (log.querySelector('span')) log.innerHTML = '';
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    const time = document.createElement('span'); time.className = 'log-time'; time.textContent = nowStr();
+    const tag  = document.createElement('span'); tag.className  = 'log-tag tag-' + data.event; tag.textContent = data.event.replace(/_/g,' ');
+    const msg  = document.createElement('span'); msg.className  = 'log-msg';
+    let text = '';
+    if (data.event === 'start')      text = `Field: ${data.field_id} | Q: "${data.question}" | History: ${data.historical_log_count} records`;
+    else if (data.event === 'tool_call')   text = `⚡ ${data.function_name}(${JSON.stringify(data.arguments||{})})`;
+    else if (data.event === 'tool_result') text = `✅ ${data.function_name} → ${data.message || 'done'}`;
+    else if (data.event === 'diagnosis')   text = `🎯 Severity: ${(data.severity||'').toUpperCase()} | Confidence: ${Math.round((data.confidence_score||0)*100)}%`;
+    else text = data.message || JSON.stringify(data).slice(0, 200);
+    msg.textContent = text;
+    entry.appendChild(time); entry.appendChild(tag); entry.appendChild(msg);
+    log.appendChild(entry);
     log.scrollTop = log.scrollHeight;
   }
 
+  function setBtn(id, disabled, label) {
+    const btn = document.getElementById(id);
+    btn.disabled = disabled;
+    btn.innerHTML = disabled ? '<div class="spinner-btn"></div> Analysing…' : '<span>▶</span> ' + label;
+  }
+
   function startFieldDemo() {
-    const btn = document.getElementById('fieldBtn');
-    const log = document.getElementById('log');
-    const result = document.getElementById('fieldResult');
     const q = document.getElementById('fieldQuestion').value.trim();
-
-    btn.disabled = true; btn.textContent = 'Analysing...';
-    log.innerHTML = ''; result.style.display = 'none';
-
+    document.getElementById('log').innerHTML = '';
+    document.getElementById('fieldResult').style.display = 'none';
+    setBtn('fieldBtn', true, '');
+    appendLog('log', { event: 'info', message: '🚀 Connecting to Gemini API via SSE stream…' });
     const url = q ? '/demo/live?question=' + encodeURIComponent(q) : '/demo/live';
     const es = new EventSource(url);
-
     es.onmessage = function(e) {
       const data = JSON.parse(e.data);
       appendLog('log', data);
-      if (data.event === 'diagnosis') {
-        renderFieldResult(data); es.close();
-        btn.disabled = false; btn.textContent = 'Run Again';
-      }
-      if (data.event === 'error') {
-        es.close(); btn.disabled = false; btn.textContent = 'Retry';
-      }
+      if (data.event === 'diagnosis') { renderFieldResult(data); es.close(); setBtn('fieldBtn', false, 'Run Again'); }
+      if (data.event === 'error')     { es.close(); setBtn('fieldBtn', false, 'Retry'); }
     };
     es.onerror = function() {
-      appendLog('log', { event: 'error', message: 'Connection lost.' });
-      es.close(); btn.disabled = false; btn.textContent = 'Retry';
+      appendLog('log', { event: 'error', message: 'SSE connection lost.' });
+      es.close(); setBtn('fieldBtn', false, 'Retry');
     };
   }
 
@@ -242,48 +311,52 @@ e.g. Can I harvest this week?"></textarea>
     document.getElementById('fr-diagnosis').textContent = d.diagnosis;
     document.getElementById('fr-rootcause').textContent = d.root_cause;
     document.getElementById('fr-report').textContent    = d.report_for_farmer;
-    var s = document.getElementById('fr-severity');
-    s.textContent = d.severity.toUpperCase(); s.className = 'sev-badge sev-' + d.severity;
-    var recList = document.getElementById('fr-recs'); recList.innerHTML = '';
-    (d.recommendations||[]).forEach(function(r){ var li=document.createElement('li'); li.textContent=r; recList.appendChild(li); });
-    var actDiv = document.getElementById('fr-actions'); actDiv.innerHTML = '';
-    (d.actions_taken||[]).forEach(function(a){ var c=document.createElement('span'); c.className='action-chip'; c.textContent=a.action_name+'()'; actDiv.appendChild(c); });
-    var pct = Math.round((d.confidence_score||0)*100);
+    document.getElementById('fr-severity').innerHTML = `<span class="sev-badge sev-${d.severity}">${(d.severity||'').toUpperCase()}</span>`;
+    const rl = document.getElementById('fr-recs'); rl.innerHTML = '';
+    (d.recommendations||[]).forEach(r => { const li=document.createElement('li'); li.textContent=r; rl.appendChild(li); });
+    const ad = document.getElementById('fr-actions'); ad.innerHTML = '';
+    (d.actions_taken||[]).length
+      ? d.actions_taken.forEach(a => { const c=document.createElement('span'); c.className='action-chip'; c.textContent=a.action_name+'()'; ad.appendChild(c); })
+      : (ad.innerHTML = '<span style="color:var(--muted);font-size:.8rem">No IoT actions triggered</span>');
+    const pct = Math.round((d.confidence_score||0)*100);
     document.getElementById('fr-conf-bar').style.width = pct+'%';
     document.getElementById('fr-conf-label').textContent = pct+'% confidence';
-    var res = document.getElementById('fieldResult');
-    res.style.display = 'block'; res.scrollIntoView({behavior:'smooth'});
+    const res = document.getElementById('fieldResult');
+    res.style.display = 'block';
+    setTimeout(() => res.scrollIntoView({behavior:'smooth', block:'start'}), 100);
   }
 
   async function startDiseaseDemo() {
-    const btn = document.getElementById('diseaseBtn');
-    const log = document.getElementById('log2');
-    const result = document.getElementById('diseaseResult');
-
-    btn.disabled = true; btn.textContent = 'Analysing...';
-    log.innerHTML = ''; result.style.display = 'none';
-
-    appendLog('log2', { event: 'thinking', message: 'Running scenario "' + selectedScenario + '"...' });
-
+    document.getElementById('log2').innerHTML = '';
+    document.getElementById('diseaseResult').style.display = 'none';
+    setBtn('diseaseBtn', true, '');
+    appendLog('log2', { event: 'info',     message: '🚀 Sending request to Gemini Vision API…' });
+    appendLog('log2', { event: 'thinking', message: `📦 Loading scenario: "${selectedScenario}"` });
+    appendLog('log2', { event: 'thinking', message: '🖼️  Leaf image loaded into multimodal prompt' });
+    appendLog('log2', { event: 'thinking', message: '📡 IoT sensor data appended to context' });
+    appendLog('log2', { event: 'thinking', message: '🧠 Sending to Gemini — visual + sensor cross-query…' });
     try {
-      const res = await fetch('/demo/plant-disease/' + selectedScenario);
+      const res  = await fetch('/demo/plant-disease/' + selectedScenario);
       const data = await res.json();
       if (!res.ok) {
-        appendLog('log2', { event: 'error', message: data.detail || 'An error occurred.' });
+        appendLog('log2', { event: 'error', message: data.detail || 'API error.' });
       } else {
-        appendLog('log2', { event: 'thinking', message: 'Leaf image + sensor data analysed.' });
-        (data.actions_taken||[]).forEach(function(a) {
-          appendLog('log2', { event: 'tool_call',   message: a.action_name + '() -> ' + (a.reason||'') });
-          appendLog('log2', { event: 'tool_result', message: 'Action completed: ' + a.action_name });
-        });
-        appendLog('log2', { event: 'diagnosis', message: 'Diagnosis: ' + data.diagnosis });
+        appendLog('log2', { event: 'thinking', message: '✅ Gemini response received — parsing JSON result…' });
+        if (data.actions_taken && data.actions_taken.length) {
+          data.actions_taken.forEach(a => {
+            appendLog('log2', { event: 'tool_call',   function_name: a.action_name, arguments: a.parameters, message: '' });
+            appendLog('log2', { event: 'tool_result', function_name: a.action_name, message: a.reason || a.action_name });
+          });
+        } else {
+          appendLog('log2', { event: 'tool_result', function_name: 'none', message: 'No IoT intervention required' });
+        }
+        appendLog('log2', { event: 'diagnosis', severity: data.severity, confidence_score: data.confidence_score, message: '' });
         renderDiseaseResult(data);
       }
     } catch(e) {
       appendLog('log2', { event: 'error', message: 'Request failed: ' + e.message });
     }
-
-    btn.disabled = false; btn.textContent = 'Run Again';
+    setBtn('diseaseBtn', false, 'Run Again');
   }
 
   function renderDiseaseResult(d) {
@@ -292,24 +365,26 @@ e.g. Can I harvest this week?"></textarea>
     document.getElementById('dr-diagnosis').textContent       = d.diagnosis;
     document.getElementById('dr-priority-reason').textContent = d.priority_reason;
     document.getElementById('dr-report').textContent          = d.report_for_farmer;
-    var s = document.getElementById('dr-severity');
-    s.textContent = d.severity.toUpperCase(); s.className = 'sev-badge sev-' + d.severity;
-    var modeLabels = { irrigation:'💧 Irrigation', nutrient:'🌿 Nutrition', disease:'🦠 Disease', combined:'⚖️ Combined' };
-    document.getElementById('dr-priority').textContent = modeLabels[d.priority_mode] || d.priority_mode;
-    var recList = document.getElementById('dr-recs'); recList.innerHTML = '';
-    (d.recommendations||[]).forEach(function(r){ var li=document.createElement('li'); li.textContent=r; recList.appendChild(li); });
-    var actDiv = document.getElementById('dr-actions'); actDiv.innerHTML = '';
-    if (d.actions_taken && d.actions_taken.length > 0) {
-      d.actions_taken.forEach(function(a){ var c=document.createElement('span'); c.className='action-chip'; c.textContent=a.action_name+'()'; actDiv.appendChild(c); });
-    } else {
-      actDiv.innerHTML = '<span style="color:#6b8f6b;font-size:.82rem">No action required</span>';
-    }
-    var pct = Math.round((d.confidence_score||0)*100);
+    document.getElementById('dr-severity').innerHTML = `<span class="sev-badge sev-${d.severity}">${(d.severity||'').toUpperCase()}</span>`;
+    const modeMap = { irrigation:'💧 Irrigation First', nutrient:'🌿 Nutrition First', disease:'🦠 Disease Treatment', combined:'⚖️ Combined Action' };
+    document.getElementById('dr-priority').textContent = modeMap[d.priority_mode] || d.priority_mode;
+    const rl = document.getElementById('dr-recs'); rl.innerHTML = '';
+    (d.recommendations||[]).forEach(r => { const li=document.createElement('li'); li.textContent=r; rl.appendChild(li); });
+    const ad = document.getElementById('dr-actions'); ad.innerHTML = '';
+    (d.actions_taken||[]).length
+      ? d.actions_taken.forEach(a => { const c=document.createElement('span'); c.className='action-chip'; c.textContent=a.action_name+'()'; ad.appendChild(c); })
+      : (ad.innerHTML = '<span style="color:var(--muted);font-size:.8rem">No IoT actions triggered</span>');
+    const pct = Math.round((d.confidence_score||0)*100);
     document.getElementById('dr-conf-bar').style.width = pct+'%';
     document.getElementById('dr-conf-label').textContent = pct+'% confidence';
-    var res = document.getElementById('diseaseResult');
-    res.style.display = 'block'; res.scrollIntoView({behavior:'smooth'});
+    const res = document.getElementById('diseaseResult');
+    res.style.display = 'block';
+    setTimeout(() => res.scrollIntoView({behavior:'smooth', block:'start'}), 100);
   }
+
+  fetch('/health').then(r=>r.json()).then(d => {
+    if (d.gemini_model) document.getElementById('model-badge').textContent = d.gemini_model;
+  }).catch(()=>{});
 </script>
 </body>
 </html>
