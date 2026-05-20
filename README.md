@@ -1,5 +1,6 @@
 # 🌿 Agri-Lens — Monorepo
-
+[![Devpost](https://img.shields.io/badge/Devpost-Agri--Lens-003E54?style=flat&logo=devpost)](https://devpost.com/software/agri-lens-fvki62)
+[![Demo](https://img.shields.io/badge/YouTube-Demo-FF0000?style=flat&logo=youtube)](https://youtu.be/Tz3pahxRxd0)
 > AI-powered agronomist in every farmer's pocket.
 
 ```
