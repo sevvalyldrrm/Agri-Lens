@@ -300,6 +300,93 @@ async def analyze_plant_disease_upload(
             os.unlink(tmp_path)
 
 
+@app.post("/analyze/text", response_model=DiagnosisResult, tags=["analysis"])
+async def analyze_text(
+    field_id: str = Form("field-A"),
+    question: str = Form(...),
+    soil_moisture: float = Form(45.0),
+    temperature: float = Form(28.0),
+    humidity: float = Form(70.0),
+    ph_level: float = Form(6.5),
+    nitrogen: float = Form(30.0),
+    phosphorus: float = Form(20.0),
+    potassium: float = Form(25.0),
+    light_intensity: float = Form(50000.0),
+):
+    """
+    Text-only analysis — farmer types a question, no image needed.
+    """
+    service = _require_service()
+    sensor_data = IoTSensorData(
+        field_id=field_id,
+        soil_moisture=soil_moisture,
+        temperature=temperature,
+        humidity=humidity,
+        ph_level=ph_level,
+        nitrogen=nitrogen,
+        phosphorus=phosphorus,
+        potassium=potassium,
+        light_intensity=light_intensity,
+        timestamp=datetime.now().isoformat(),
+    )
+    request = AnalysisRequest(
+        field_id=field_id,
+        question=question,
+        sensor_data=sensor_data,
+    )
+    try:
+        return await service.analyze_field(request)
+    except Exception as e:
+        logger.exception(f"Text analysis error: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@app.post("/analyze/audio", response_model=DiagnosisResult, tags=["analysis"])
+async def analyze_audio(
+    field_id: str = Form("field-A"),
+    soil_moisture: float = Form(45.0),
+    temperature: float = Form(28.0),
+    humidity: float = Form(70.0),
+    ph_level: float = Form(6.5),
+    nitrogen: float = Form(30.0),
+    phosphorus: float = Form(20.0),
+    potassium: float = Form(25.0),
+    light_intensity: float = Form(50000.0),
+    audio: UploadFile = File(...),
+):
+    """
+    Voice analysis — farmer records a voice question, Gemini transcribes and answers.
+    """
+    service = _require_service()
+
+    audio_bytes = await audio.read()
+    audio_base64 = __import__("base64").b64encode(audio_bytes).decode()
+
+    sensor_data = IoTSensorData(
+        field_id=field_id,
+        soil_moisture=soil_moisture,
+        temperature=temperature,
+        humidity=humidity,
+        ph_level=ph_level,
+        nitrogen=nitrogen,
+        phosphorus=phosphorus,
+        potassium=potassium,
+        light_intensity=light_intensity,
+        timestamp=datetime.now().isoformat(),
+    )
+    request = AnalysisRequest(
+        field_id=field_id,
+        question="[Voice message — see audio attachment]",
+        sensor_data=sensor_data,
+        audio_base64=audio_base64,
+    )
+    try:
+        return await service.analyze_field(request)
+    except Exception as e:
+        logger.exception(f"Audio analysis error: {e}")
+        raise HTTPException(status_code=500, detail=f"Audio analysis failed: {str(e)}")
+
+
 @app.get("/demo/plant-disease/{scenario}", response_model=PlantDiseaseResult, tags=["plant-disease"])
 async def demo_plant_disease(scenario: str):
     """

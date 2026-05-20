@@ -53,6 +53,38 @@ const Api = {
     return res.json();
   },
 
+  /* ── POST /analyze/text
+     Accepts FormData with: field_id, question + sensor fields
+     Returns DiagnosisResult
+  ── */
+  async analyzeText(formData) {
+    const res = await fetch(`${BASE_URL}/analyze/text`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Text analysis failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
+  /* ── POST /analyze/audio
+     Accepts FormData with: audio (Blob/File) + sensor fields
+     Returns DiagnosisResult
+  ── */
+  async analyzeAudio(formData) {
+    const res = await fetch(`${BASE_URL}/analyze/audio`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Audio analysis failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
   /* ── GET /demo/live  (SSE stream)
      Returns an EventSource for real-time streaming events.
      Each message: { event, content/message/data }
