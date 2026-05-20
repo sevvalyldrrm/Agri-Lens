@@ -24,6 +24,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.models import (
@@ -84,6 +85,14 @@ app.mount(
     "/assets",
     StaticFiles(directory=Path(__file__).parent.parent / "assets"),
     name="assets",
+)
+
+# CORS – allow agri-lens-mobile (file:// + any local dev server)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
