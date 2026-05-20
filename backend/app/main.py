@@ -1,14 +1,17 @@
 
 
+import asyncio
 import base64
+import json
 import logging
 import os
+import queue
 import tempfile
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,13 +30,41 @@ from app.demo_scenarios import (
 )
 
 # ---------------------------------------------------------------------------
-#  Logging
+#  Logging + SSE Log Stream
 # ---------------------------------------------------------------------------
+
+_log_queues: list[queue.Queue] = []
+
+
+class _SSELogHandler(logging.Handler):
+    """Forwards each log record to all connected SSE streams."""
+    def emit(self, record: logging.LogRecord):
+        msg = self.format(record)
+        payload = json.dumps({
+            "ts":    datetime.now().strftime("%H:%M:%S"),
+            "level": record.levelname,
+            "name":  record.name.split(".")[-1],
+            "msg":   msg.split(" | ")[-1] if " | " in msg else msg,
+        })
+        dead = []
+        for q in _log_queues:
+            try:
+                q.put_nowait(payload)
+            except queue.Full:
+                dead.append(q)
+        for q in dead:
+            _log_queues.remove(q)
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+_sse_handler = _SSELogHandler()
+_sse_handler.setLevel(logging.INFO)
+logging.getLogger().addHandler(_sse_handler)
 
 # ---------------------------------------------------------------------------
 #  Application lifespan
@@ -96,6 +127,34 @@ def _require_service() -> GeminiService:
 # ---------------------------------------------------------------------------
 #  System endpoints
 # ---------------------------------------------------------------------------
+
+@app.get("/logs/stream", tags=["system"])
+async def log_stream(request: Request):
+    """SSE endpoint — streams all backend logs in real time to connected clients."""
+    q: queue.Queue = queue.Queue(maxsize=200)
+    _log_queues.append(q)
+
+    async def generator():
+        try:
+            yield f"data: {json.dumps({'ts': datetime.now().strftime('%H:%M:%S'), 'level': 'INFO', 'name': 'stream', 'msg': '✅ Log stream connected'})}\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    payload = q.get_nowait()
+                    yield f"data: {payload}\n\n"
+                except queue.Empty:
+                    await asyncio.sleep(0.15)
+        finally:
+            if q in _log_queues:
+                _log_queues.remove(q)
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 
 @app.get("/health", tags=["system"])
 async def health_check():
@@ -301,7 +360,6 @@ async def demo_live_stream(question: str | None = None):
       ?question=Why are my leaves yellow?
     """
     service = _require_service()
-    import json
 
     base_request = build_live_stream_request()
     if question:

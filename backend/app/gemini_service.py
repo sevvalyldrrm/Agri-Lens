@@ -327,10 +327,8 @@ class GeminiService:
           diagnosis    -> final DiagnosisResult
           error        -> unrecoverable error
         """
-        import json as _json
-
         def _evt(event_type: str, payload: dict) -> str:
-            return _json.dumps({"event": event_type, **payload})
+            return json.dumps({"event": event_type, **payload})
 
         s = request.sensor_data
         yield _evt("start", {
@@ -443,10 +441,9 @@ class GeminiService:
         Produces identical SSE events so the demo UI works without a live API key.
         """
         import asyncio
-        import json as _json
 
         def _evt(event_type: str, payload: dict) -> str:
-            return _json.dumps({"event": event_type, **payload})
+            return json.dumps({"event": event_type, **payload})
 
         s = request.sensor_data
         actions_to_run = self._build_mock_actions(request)
@@ -588,9 +585,7 @@ class GeminiService:
         actions_taken = []
         has_image = bool(request.image_path or request.image_base64)
 
-        # Determine scenario by sensor thresholds
         if s.soil_moisture < 25:
-            # late-blight scenario: drought priority
             priority_mode = PriorityMode.IRRIGATION
             visual_finding = "[OFFLINE] Dark brown lesions with water-soaked borders visible on leaves — consistent with Late Blight (Phytophthora infestans)."
             sensor_finding = f"Soil moisture critically low at {s.soil_moisture}% — drought stress overrides disease treatment priority."
@@ -613,7 +608,6 @@ class GeminiService:
             actions_taken.append(action)
 
         elif s.nitrogen < 20:
-            # nutrient-deficiency scenario
             priority_mode = PriorityMode.NUTRIENT
             visual_finding = "[OFFLINE] Interveinal chlorosis and early blight spots detected on lower leaves."
             sensor_finding = f"Nitrogen at {s.nitrogen} mg/kg — well below the 20 mg/kg threshold."
@@ -636,7 +630,6 @@ class GeminiService:
             actions_taken.append(action)
 
         else:
-            # healthy scenario
             priority_mode = PriorityMode.COMBINED
             visual_finding = "[OFFLINE] Leaves appear green and healthy — no visible disease lesions or discolouration detected."
             sensor_finding = f"All sensors within normal range. Moisture: {s.soil_moisture}%, Nitrogen: {s.nitrogen} mg/kg."

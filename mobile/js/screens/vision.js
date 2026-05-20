@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────
-   VISION SCREEN  –  Metin / Ses / Görüntü
+   VISION SCREEN  –  Text / Voice / Image
    APIs: /analyze/text  /analyze/audio  /analyze/plant-disease/upload
    ───────────────────────────────────────── */
 
@@ -51,37 +51,37 @@ const VisionScreen = {
       <div id="vision-dialog" style="background:rgba(255,255,255,.12);backdrop-filter:blur(12px);
            border:1px solid rgba(255,255,255,.2);border-radius:18px;padding:.8rem 1rem;
            text-align:center;max-width:260px;width:100%;">
-        <h3 style="color:#fff;font-size:.9rem;font-weight:700;margin-bottom:.2rem;">AI Tarım Asistanı</h3>
+        <h3 style="color:#fff;font-size:.9rem;font-weight:700;margin-bottom:.2rem;">AI Farm Assistant</h3>
         <p style="color:rgba(255,255,255,.7);font-size:.72rem;line-height:1.5;margin:0;">
-          Metin yaz, ses kaydet veya bitki fotoğrafı yükle
+          Type a question, record your voice, or upload a plant photo
         </p>
       </div>
     </div>
 
     <!-- MODE TABS -->
     <div style="position:relative;z-index:10;display:flex;gap:.4rem;padding:0 1rem .5rem;">
-      <button id="tab-text"  class="mode-tab active-tab" data-mode="text">✏️ Metin</button>
-      <button id="tab-voice" class="mode-tab"            data-mode="voice">🎙️ Ses</button>
-      <button id="tab-image" class="mode-tab"            data-mode="image">📷 Görüntü</button>
+      <button id="tab-text"  class="mode-tab active-tab" data-mode="text">✏️ Text</button>
+      <button id="tab-voice" class="mode-tab"            data-mode="voice">🎙️ Voice</button>
+      <button id="tab-image" class="mode-tab"            data-mode="image">📷 Image</button>
     </div>
 
     <!-- TEXT MODE -->
     <div id="mode-text" style="position:relative;z-index:10;padding:0 1rem .5rem;display:flex;flex-direction:column;gap:.5rem;">
       <textarea id="text-input"
-        placeholder="Sorunuzu yazın… Örn: Yapraklar sararıyor, ne yapmalıyım?"
+        placeholder="Type your question… e.g. Leaves are turning yellow, what should I do?"
         style="width:100%;min-height:80px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);
                border-radius:12px;padding:.7rem;color:#fff;font-size:.8rem;line-height:1.5;
                backdrop-filter:blur(4px);resize:none;box-sizing:border-box;outline:none;font-family:inherit;"
       ></textarea>
       <button class="btn btn-green" id="btn-send-text" style="border-radius:14px;font-size:.8rem;">
-        🔍 Analiz Et
+        🔍 Analyse
       </button>
     </div>
 
     <!-- VOICE MODE -->
     <div id="mode-voice" style="position:relative;z-index:10;padding:0 1rem .5rem;display:none;flex-direction:column;align-items:center;gap:.6rem;">
       <div id="voice-status" style="color:rgba(255,255,255,.75);font-size:.75rem;text-align:center;">
-        Mikrofona bas ve konuş
+        Press the mic button and speak
       </div>
       <div class="voice-wave" id="voice-wave-vis" style="opacity:.4;">
         <span></span><span></span><span></span><span></span><span></span><span></span>
@@ -104,22 +104,22 @@ const VisionScreen = {
         <button class="btn btn-outline" id="btn-upload"
                 style="border-radius:14px;font-size:.78rem;flex:1;background:rgba(255,255,255,.12);
                        color:#fff;border:1px solid rgba(255,255,255,.25);backdrop-filter:blur(4px);">
-          📂 Fotoğraf Seç
+          📂 Choose Photo
         </button>
         <button class="btn btn-green" id="btn-analyze-img" style="border-radius:14px;font-size:.78rem;flex:1;" disabled>
-          🔍 Analiz Et
+          🔍 Analyse
         </button>
       </div>
       <div style="display:flex;gap:.4rem;">
         <button class="btn btn-outline" id="btn-identify"
                 style="border-radius:14px;font-size:.72rem;flex:1;background:rgba(255,255,255,.08);
                        color:#ddd;border:1px solid rgba(255,255,255,.2);">
-          🐛 Zararlı Tanı
+          🐛 Pest ID
         </button>
         <button class="btn btn-outline" id="btn-stress"
                 style="border-radius:14px;font-size:.72rem;flex:1;background:rgba(255,255,255,.08);
                        color:#ddd;border:1px solid rgba(255,255,255,.2);">
-          ⚡ Stres Kontrol
+          ⚡ Stress Check
         </button>
       </div>
     </div>
@@ -154,7 +154,7 @@ const VisionScreen = {
     // TEXT
     container.querySelector('#btn-send-text').addEventListener('click', () => {
       const question = container.querySelector('#text-input').value.trim();
-      if (!question) { alert('Lütfen bir soru yazın.'); return; }
+      if (!question) { alert('Please enter a question.'); return; }
       this._runTextAnalysis(container, question);
     });
 
@@ -219,15 +219,15 @@ const VisionScreen = {
 
   _showError(container, err) {
     container.querySelector('#vision-dialog').innerHTML = `
-      <div style="color:#f87171;font-size:.82rem;font-weight:700;">⚠️ Hata</div>
+      <div style="color:#f87171;font-size:.82rem;font-weight:700;">⚠️ Error</div>
       <div style="color:rgba(255,255,255,.7);font-size:.72rem;margin-top:.4rem;line-height:1.4;">${err.message}</div>
       <button onclick="location.reload()"
               style="margin-top:.6rem;background:#16a34a;color:#fff;border:none;border-radius:8px;
-                     padding:.4rem .8rem;font-size:.72rem;cursor:pointer;">Tekrar Dene</button>`;
+                     padding:.4rem .8rem;font-size:.72rem;cursor:pointer;">Try Again</button>`;
   },
 
   async _runTextAnalysis(container, question) {
-    this._showLoading(container, '✏️ Metin sorunuz analiz ediliyor…');
+    this._showLoading(container, '✏️ Analysing your question…');
     try {
       const sensors = await this._getSensors();
       const fd = new FormData();
@@ -255,7 +255,7 @@ const VisionScreen = {
       btn.style.background = 'rgba(239,68,68,1)';
       btn.style.boxShadow  = '0 0 0 8px rgba(239,68,68,.3)';
       btn.innerHTML = '⏹️';
-      status.textContent = 'Kaydediliyor… Durdurmak için tekrar bas';
+      status.textContent = 'Recording… Tap again to stop';
       wave.style.opacity  = '1';
       timer.style.display = 'block';
 
@@ -266,7 +266,7 @@ const VisionScreen = {
         timer.textContent = `⏱ ${m}:${s.toString().padStart(2,'0')}`;
       }, 1000);
     } catch (e) {
-      container.querySelector('#voice-status').textContent = '❌ Mikrofon erişimi reddedildi';
+      container.querySelector('#voice-status').textContent = '❌ Microphone access denied';
     }
   },
 
@@ -293,7 +293,7 @@ const VisionScreen = {
   },
 
   async _runAudioAnalysis(container, audioBlob) {
-    this._showLoading(container, '🎙️ Ses mesajınız analiz ediliyor…');
+    this._showLoading(container, '🎙️ Analysing your voice message…');
     try {
       const sensors = await this._getSensors();
       const fd = new FormData();
@@ -305,7 +305,7 @@ const VisionScreen = {
   },
 
   async _runImageAnalysis(container, file, question) {
-    this._showLoading(container, '📷 Görüntü analiz ediliyor…');
+    this._showLoading(container, '📷 Analysing image…');
     try {
       const sensors = await this._getSensors();
       const fd = new FormData();

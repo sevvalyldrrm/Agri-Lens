@@ -108,6 +108,10 @@
     .conf-label { font-size:.75rem; color:var(--muted); margin-top:.3rem; }
     .gemini-proof { display: flex; align-items: center; gap: .7rem; background: linear-gradient(135deg,#0d0d2e,#1a0d2e); border: 1px solid #4c1d95; border-radius: 10px; padding: .8rem 1.1rem; margin-bottom: 1.2rem; font-size: .8rem; color: #c084fc; }
     .gemini-proof strong { color: #e9d5ff; }
+
+    .filter-btn { background:var(--bg2); border:1px solid var(--border); color:var(--muted); border-radius:6px; padding:.28rem .75rem; font-size:.74rem; cursor:pointer; transition:all .2s; }
+    .filter-btn:hover { border-color:var(--green2); color:var(--soft); }
+    .filter-btn.active-filter { background:rgba(74,222,128,.15); border-color:var(--green); color:var(--green); font-weight:700; }
     @media (max-width: 700px) { .result-grid { grid-template-columns: 1fr; } .hero h1 { font-size: 2rem; } }
   </style>
 </head>
@@ -137,6 +141,7 @@
   <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('field',this)">📡 Field Analysis (SSE Live)</button>
     <button class="tab-btn"        onclick="switchTab('disease',this)">🔬 Plant Disease Vision</button>
+    <button class="tab-btn" id="tab-btn-monitor" onclick="switchTab('monitor',this);initMonitor()">📱 Mobile Monitor <span id="monitor-dot" style="display:none;width:7px;height:7px;background:#4ade80;border-radius:50%;display:inline-block;vertical-align:middle;margin-left:4px;animation:pulse 1.5s infinite"></span></button>
   </div>
 
   <!-- ═══ TAB 1: FIELD ANALYSIS ═══ -->
@@ -238,7 +243,54 @@ e.g. Is it safe to harvest this week?"></textarea>
       </div>
     </div>
   </div>
-</div>
+
+  <!-- ═══ TAB 3: MOBILE MONITOR ═══ -->
+  <div id="tab-monitor" class="panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem;">
+      <div>
+        <div class="section-label">📱 Mobile App — Live Backend Log Monitor</div>
+        <p style="color:var(--muted);font-size:.82rem;margin-top:.2rem;">Every request sent from the mobile app appears here in real time</p>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center;">
+        <div style="display:flex;align-items:center;gap:.4rem;font-size:.78rem;color:var(--muted);">
+          <div id="monitor-conn-dot" style="width:8px;height:8px;border-radius:50%;background:#374137;transition:background .3s;"></div>
+          <span id="monitor-conn-label">Connecting…</span>
+        </div>
+        <button onclick="clearMonitorLog()" style="background:var(--bg2);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer;">🗑 Clear</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:.4rem;margin-bottom:.8rem;flex-wrap:wrap;">
+      <button onclick="setMonitorFilter('all')"    id="f-all"    class="filter-btn active-filter">All</button>
+      <button onclick="setMonitorFilter('text')"   id="f-text"   class="filter-btn">✏️ Text</button>
+      <button onclick="setMonitorFilter('audio')"  id="f-audio"  class="filter-btn">🎙️ Voice</button>
+      <button onclick="setMonitorFilter('image')"  id="f-image"  class="filter-btn">📷 Image</button>
+      <button onclick="setMonitorFilter('gemini')" id="f-gemini" class="filter-btn">🤖 Gemini</button>
+      <button onclick="setMonitorFilter('iot')"    id="f-iot"    class="filter-btn">⚡ IoT</button>
+    </div>
+    <div class="log-box" id="monitor-log" style="height:400px;margin-bottom:.8rem;">
+      <span style="color:#2a4a2a">// Send a request from the mobile app…</span>
+    </div>
+    <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.5rem 1.1rem;text-align:center;min-width:90px;">
+        <div style="font-size:1.4rem;font-weight:800;color:var(--green)" id="cnt-total">0</div>
+        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase">Total Requests</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.5rem 1.1rem;text-align:center;min-width:90px;">
+        <div style="font-size:1.4rem;font-weight:800;color:#fde68a" id="cnt-gemini">0</div>
+        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase">Gemini Calls</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.5rem 1.1rem;text-align:center;min-width:90px;">
+        <div style="font-size:1.4rem;font-weight:800;color:#fb923c" id="cnt-iot">0</div>
+        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase">IoT Actions</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.5rem 1.1rem;text-align:center;min-width:90px;">
+        <div style="font-size:1.4rem;font-weight:800;color:#fca5a5" id="cnt-error">0</div>
+        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase">Errors</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.page -->
 
 <script>
   let selectedScenario = 'late-blight';
@@ -380,6 +432,94 @@ e.g. Is it safe to harvest this week?"></textarea>
     const res = document.getElementById('diseaseResult');
     res.style.display = 'block';
     setTimeout(() => res.scrollIntoView({behavior:'smooth', block:'start'}), 100);
+  }
+
+  let _monitorES = null;
+  let _monitorFilter = 'all';
+  let _allEntries = [];
+  let _counts = { total:0, gemini:0, iot:0, error:0 };
+
+  function initMonitor() {
+    if (_monitorES) return;
+    _monitorES = new EventSource('/logs/stream');
+    _monitorES.onopen = function() {
+      document.getElementById('monitor-conn-dot').style.background = '#4ade80';
+      document.getElementById('monitor-conn-label').textContent = 'Connected — streaming logs';
+    };
+    _monitorES.onmessage = function(e) {
+      try {
+        const d = JSON.parse(e.data);
+        _allEntries.push(d);
+        // update counters
+        _counts.total++;
+        const m = d.msg || '';
+        if (m.includes('Gemini') || m.includes('gemini')) _counts.gemini++;
+        if (m.includes('IoT') || m.includes('irrigation') || m.includes('fertilizer') || m.includes('activate')) _counts.iot++;
+        if (d.level === 'ERROR' || d.level === 'WARNING') _counts.error++;
+        document.getElementById('cnt-total').textContent  = _counts.total;
+        document.getElementById('cnt-gemini').textContent = _counts.gemini;
+        document.getElementById('cnt-iot').textContent    = _counts.iot;
+        document.getElementById('cnt-error').textContent  = _counts.error;
+        if (passesFilter(d)) renderMonitorEntry(d);
+      } catch(_) {}
+    };
+    _monitorES.onerror = function() {
+      document.getElementById('monitor-conn-dot').style.background = '#f87171';
+      document.getElementById('monitor-conn-label').textContent = 'Disconnected — retrying…';
+      _monitorES.close(); _monitorES = null;
+      setTimeout(initMonitor, 3000);
+    };
+  }
+
+  function passesFilter(d) {
+    if (_monitorFilter === 'all') return true;
+    const m = (d.msg || '').toLowerCase();
+    const n = (d.name || '').toLowerCase();
+    if (_monitorFilter === 'text')   return m.includes('text') || m.includes('analyze_text') || n.includes('text');
+    if (_monitorFilter === 'audio')  return m.includes('audio') || n.includes('audio');
+    if (_monitorFilter === 'image')  return m.includes('image') || m.includes('plant') || m.includes('upload');
+    if (_monitorFilter === 'gemini') return m.includes('gemini') || n.includes('gemini');
+    if (_monitorFilter === 'iot')    return m.includes('iot') || m.includes('irrigat') || m.includes('fertiliz') || m.includes('activate') || m.includes('trigger');
+    return true;
+  }
+
+  function renderMonitorEntry(d) {
+    const log = document.getElementById('monitor-log');
+    if (log.querySelector('span')) log.innerHTML = '';
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.dataset.raw = JSON.stringify(d);
+
+    const time = document.createElement('span'); time.className = 'log-time'; time.textContent = d.ts || nowStr();
+    const lvl  = document.createElement('span');
+    const lvlClass = d.level === 'ERROR' ? 'tag-error' : d.level === 'WARNING' ? 'tag-thinking' : 'tag-info';
+    lvl.className = 'log-tag ' + lvlClass; lvl.textContent = d.level || 'INFO';
+    const src  = document.createElement('span');
+    src.style.cssText = 'font-size:.68rem;color:#3d6a3d;min-width:75px;flex-shrink:0;padding-top:.05rem;font-family:monospace;';
+    src.textContent = '[' + (d.name || 'app') + ']';
+    const msg  = document.createElement('span'); msg.className = 'log-msg'; msg.textContent = d.msg || '';
+
+    entry.appendChild(time); entry.appendChild(lvl); entry.appendChild(src); entry.appendChild(msg);
+    log.appendChild(entry);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function setMonitorFilter(f) {
+    _monitorFilter = f;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active-filter'));
+    document.getElementById('f-' + f).classList.add('active-filter');
+    // yeniden render
+    const log = document.getElementById('monitor-log');
+    log.innerHTML = '';
+    const filtered = _allEntries.filter(passesFilter);
+    if (!filtered.length) { log.innerHTML = '<span style="color:#2a4a2a">// No logs for this filter yet…</span>'; return; }
+    filtered.forEach(renderMonitorEntry);
+  }
+
+  function clearMonitorLog() {
+    _allEntries = []; _counts = {total:0,gemini:0,iot:0,error:0};
+    document.getElementById('monitor-log').innerHTML = '<span style="color:#2a4a2a">// Cleared…</span>';
+    ['total','gemini','iot','error'].forEach(k => document.getElementById('cnt-'+k).textContent = '0');
   }
 
   fetch('/health').then(r=>r.json()).then(d => {
