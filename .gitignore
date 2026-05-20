@@ -8,42 +8,25 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-eggs/
-parts/
-var/
-sdist/
-develop-eggs/
-.installed.cfg
-lib/
-lib64/
 
 # Virtual environments
-.env
-.venv
-env/
+backend/venv/
 venv/
-ENV/
 
-# Environment variables / secrets
+# Environment secrets
 .env
+.env.local
 *.env
-secrets.json
 
 # IDE
-.vscode/
+.vscode/settings.json
 .idea/
 *.swp
 *.swo
 
-# macOS
+# OS
 .DS_Store
-.AppleDouble
-.LSOverride
+Thumbs.db
 
 # Logs
 *.log
-logs/
-
-# Distribution
-*.tar.gz
-*.zip

@@ -1,6 +1,11 @@
 """
 Agri-Lens FastAPI application — main entry point.
 
+Monorepo structure:
+  agri-lens/
+  ├── backend/   ← this package (FastAPI + Gemini AI)
+  └── mobile/    ← Vanilla JS mobile UI (served separately on port 3000)
+
 Endpoints:
   POST /analyze                        -> Full multimodal field analysis
   POST /analyze/quick                  -> Form-based analysis (mobile-friendly)
@@ -81,6 +86,7 @@ app = FastAPI(
 )
 
 # Serve demo images statically at /assets/demo_images/
+# Path: monorepo/backend/assets/demo_images/
 app.mount(
     "/assets",
     StaticFiles(directory=Path(__file__).parent.parent / "assets"),
@@ -366,14 +372,4 @@ async def demo_live_ui():
     No frontend framework needed — open in any browser.
     """
     template_path = Path(__file__).parent / "templates" / "live_demo.html"
-    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
-
-
-@app.get("/mobile", response_class=HTMLResponse, tags=["demo"])
-async def mobile_ui():
-    """
-    Mobile UI simulator — Agri-Lens full 5-screen mobile app mockup.
-    Open in any browser: http://localhost:8000/mobile
-    """
-    template_path = Path(__file__).parent / "templates" / "mobile_ui.html"
     return HTMLResponse(content=template_path.read_text(encoding="utf-8"))

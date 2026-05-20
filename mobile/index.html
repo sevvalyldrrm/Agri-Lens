@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agri-Lens Mobile</title>
+  <link rel="stylesheet" href="css/base.css"/>
+  <link rel="stylesheet" href="css/components.css"/>
+  <style>
+    /* ── Vision Screen scan corners & wave animation (screen-specific) ── */
+    .corner {
+      position: absolute;
+      width: 28px; height: 28px;
+      border-color: #4ade80;
+      border-style: solid;
+    }
+    .corner.tl { top: 0; left: 0;  border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+    .corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+    .corner.bl { bottom: 0; left: 0;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+    .corner.br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+    .scan-line-anim {
+      position: absolute; left: 4px; right: 4px; height: 2px;
+      background: linear-gradient(90deg, transparent, #4ade80, transparent);
+      animation: scanline 2s linear infinite;
+    }
+    @keyframes scanline { 0% { top: 8px; } 100% { top: calc(100% - 10px); } }
+
+    .voice-wave { display: flex; align-items: flex-end; justify-content: center; gap: 3px; height: 24px; margin-top: .3rem; }
+    .voice-wave span { width: 4px; background: #4ade80; border-radius: 2px; animation: wavebar .8s ease-in-out infinite; }
+    .voice-wave span:nth-child(1) { height: 8px;  animation-delay: 0s; }
+    .voice-wave span:nth-child(2) { height: 18px; animation-delay: .1s; }
+    .voice-wave span:nth-child(3) { height: 24px; animation-delay: .2s; }
+    .voice-wave span:nth-child(4) { height: 14px; animation-delay: .3s; }
+    .voice-wave span:nth-child(5) { height: 20px; animation-delay: .4s; }
+    .voice-wave span:nth-child(6) { height: 10px; animation-delay: .5s; }
+    @keyframes wavebar { 0%,100% { transform: scaleY(.4); } 50% { transform: scaleY(1); } }
+
+    /* Vision screen needs dark background */
+    #screen-vision { background: #000 !important; }
+  </style>
+</head>
+<body>
+
+  <div class="simulator-header">🌿 Agri-Lens Mobile</div>
+
+  <div class="phone-frame">
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>9:41</span>
+      <div class="notch"></div>
+      <div class="status-icons">
+        <!-- Signal bars -->
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+          <rect x="0"   y="4"   width="3" height="8"    rx="1" fill="#1a3a1a"/>
+          <rect x="4.5" y="2.5" width="3" height="9.5"  rx="1" fill="#1a3a1a"/>
+          <rect x="9"   y="0.5" width="3" height="11.5" rx="1" fill="#1a3a1a"/>
+          <rect x="13.5" y="0"  width="2.5" height="12" rx="1" fill="#d1d5db"/>
+        </svg>
+        <!-- Wifi -->
+        <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+          <path d="M8 2.5C10.5 2.5 12.7 3.6 14.2 5.3L15.5 3.9C13.6 1.8 10.9.5 8 .5S2.4 1.8.5 3.9L1.8 5.3C3.3 3.6 5.5 2.5 8 2.5Z" fill="#1a3a1a"/>
+          <path d="M8 5.5C9.8 5.5 11.4 6.3 12.5 7.6L13.8 6.2C12.4 4.6 10.3 3.5 8 3.5S3.6 4.6 2.2 6.2L3.5 7.6C4.6 6.3 6.2 5.5 8 5.5Z" fill="#1a3a1a"/>
+          <circle cx="8" cy="10.5" r="1.5" fill="#1a3a1a"/>
+        </svg>
+        <!-- Battery -->
+        <svg width="26" height="12" viewBox="0 0 26 12" fill="none">
+          <rect x=".5" y=".5" width="22" height="11" rx="3.5" stroke="#1a3a1a" stroke-opacity=".35"/>
+          <rect x="1.5" y="1.5" width="18" height="9" rx="2.5" fill="#1a3a1a"/>
+          <path d="M23.5 4v4a2 2 0 000-4z" fill="#1a3a1a" fill-opacity=".4"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Screen Container -->
+    <div class="screen-wrap">
+      <div class="screen active" id="screen-home"></div>
+      <div class="screen"        id="screen-vision"></div>
+      <div class="screen"        id="screen-report"></div>
+      <div class="screen"        id="screen-actions"></div>
+      <div class="screen"        id="screen-analytics"></div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" id="nav-home" data-screen="home">
+        <svg viewBox="0 0 24 24"><path d="M3 9.5L12 3L21 9.5V20c0 .55-.45 1-1 1h-5v-6H9v6H4c-.55 0-1-.45-1-1V9.5Z"/></svg>
+        <span class="nav-label">Home</span>
+      </button>
+      <button class="nav-item" id="nav-vision" data-screen="vision">
+        <svg viewBox="0 0 24 24"><path d="M12 5C7 5 2.73 8.11 1 12.5 2.73 16.89 7 20 12 20c5 0 9.27-3.11 11-7.5C21.27 8.11 17 5 12 5Zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5Zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3Z"/></svg>
+        <span class="nav-label">Vision</span>
+      </button>
+      <button class="nav-item" id="nav-report" data-screen="report">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6Zm2 16H8v-2h8v2Zm0-4H8v-2h8v2Zm-3-5V3.5L18.5 9H13Z"/></svg>
+        <span class="nav-label">Report</span>
+      </button>
+      <button class="nav-item" id="nav-actions" data-screen="actions">
+        <svg viewBox="0 0 24 24"><path d="M13 2.05v2c4.39.54 7.5 4.53 6.96 8.92-.5 3.64-3.36 6.53-7 6.96v2c5.5-.55 9.5-5.43 8.95-10.93-.45-4.75-4.22-8.5-8.91-8.95Zm-2-.01C9.05 2.25 7.19 3 5.67 4.26L7.1 5.74C8.22 4.84 9.57 4.26 11 4.06V2.04ZM4.26 5.67C3 7.19 2.25 9.04 2.05 11h2c.19-1.42.75-2.77 1.64-3.9L4.26 5.67ZM2.06 13c.2 1.96.97 3.81 2.21 5.33l1.42-1.43C4.81 15.77 4.24 14.42 4.06 13H2.06Zm5.61 6.74C9.18 21 11.04 21.79 13 22v-2c-1.42-.18-2.77-.75-3.9-1.63L7.67 19.74Z"/></svg>
+        <span class="nav-label">Actions</span>
+      </button>
+      <button class="nav-item" id="nav-analytics" data-screen="analytics">
+        <svg viewBox="0 0 24 24"><path d="M3.5 18.5 9.5 12.5l4 4L22 6.92 20.59 5.51l-7.09 8-4-4L2 17l1.5 1.5Z"/></svg>
+        <span class="nav-label">Analytics</span>
+      </button>
+    </nav>
+
+  </div><!-- /phone-frame -->
+
+  <script type="module">
+    import router from './js/router.js';
+
+    /* Wire nav buttons */
+    document.querySelectorAll('.nav-item[data-screen]').forEach(btn => {
+      btn.addEventListener('click', () => router.navigate(btn.dataset.screen));
+    });
+
+    /* Boot on home */
+    router.navigate('home');
+  </script>
+</body>
+</html>

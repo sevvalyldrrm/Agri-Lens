@@ -1,0 +1,191 @@
+/* ─────────────────────────────────────────
+   BASE.CSS  –  Reset · Variables · Frame · Nav
+   ───────────────────────────────────────── */
+
+/* ── Design Tokens ── */
+:root {
+  --green-50:  #f0faf0;
+  --green-100: #dcfce7;
+  --green-200: #d0ecd0;
+  --green-400: #4ade80;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+  --green-800: #166534;
+  --green-900: #14532d;
+  --green-950: #0e1a0e;
+
+  --text-primary:   #1a3a1a;
+  --text-secondary: #6a9a6a;
+  --text-muted:     #aac0aa;
+
+  --bg-screen:  #f2f5f0;
+  --bg-card:    #ffffff;
+  --border:     #e0e8dc;
+
+  --orange:  #ff7a00;
+  --red-400: #f87171;
+  --red-600: #dc2626;
+  --blue-200:#dbeafe;
+  --blue-600:#0284c7;
+  --yellow-100:#fef3c7;
+  --yellow-600:#ca8a04;
+
+  --radius-sm:  8px;
+  --radius-md:  14px;
+  --radius-lg:  18px;
+  --radius-xl:  20px;
+
+  --shadow-card: 0 2px 12px rgba(0, 100, 0, 0.07);
+  --shadow-sm:   0 1px 6px  rgba(0, 100, 0, 0.06);
+
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* ── Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--green-950);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  gap: 1.5rem;
+}
+
+/* ── Simulator Header ── */
+.simulator-header {
+  color: var(--green-400);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+/* ── Phone Frame ── */
+.phone-frame {
+  width: 375px;
+  height: 812px;
+  background: var(--bg-screen);
+  border-radius: 48px;
+  box-shadow:
+    0 0 0 10px #1a1a1a,
+    0 0 0 12px #333,
+    0 40px 80px rgba(0, 0, 0, .7);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Status Bar ── */
+.status-bar {
+  padding: .6rem 1.4rem .3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  position: relative;
+  z-index: 10;
+  background: transparent;
+}
+
+.status-bar .notch {
+  width: 110px;
+  height: 26px;
+  background: #1a1a1a;
+  border-radius: 0 0 16px 16px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 0;
+}
+
+.status-icons {
+  display: flex;
+  gap: .3rem;
+  align-items: center;
+}
+
+/* ── Screen Container ── */
+.screen-wrap {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+  background: var(--bg-screen);
+  scrollbar-width: none;
+}
+.screen::-webkit-scrollbar { display: none; }
+.screen.active { display: flex; }
+
+/* ── Bottom Navigation ── */
+.bottom-nav {
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  padding: .6rem 0 1.2rem;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .18rem;
+  cursor: pointer;
+  padding: .3rem .5rem;
+  border-radius: 10px;
+  transition: all .2s;
+  min-width: 52px;
+  border: none;
+  background: transparent;
+}
+
+.nav-item svg {
+  width: 22px;
+  height: 22px;
+}
+
+.nav-item .nav-label {
+  font-size: .62rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.nav-item.active .nav-label {
+  color: var(--green-600);
+  font-weight: 700;
+}
+
+.nav-item.active {
+  background: var(--green-50);
+}
+
+.nav-item svg path {
+  fill: var(--text-muted);
+  transition: fill .2s;
+}
+
+.nav-item.active svg path {
+  fill: var(--green-600);
+}
