@@ -18,13 +18,6 @@ const Api = {
     return res.json();
   },
 
-  /* ── GET /health ── */
-  async getHealth() {
-    const res = await fetch(`${BASE_URL}/health`);
-    if (!res.ok) throw new Error('Health check failed');
-    return res.json();
-  },
-
   /* ── GET /demo/plant-disease/{scenario}
      scenario: 'late-blight' | 'nutrient-deficiency' | 'healthy'
      Returns PlantDiseaseResult

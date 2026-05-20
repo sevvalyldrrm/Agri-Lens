@@ -1,16 +1,4 @@
-"""
-Agri-Lens FastAPI application — main entry point.
 
-Endpoints:
-  POST /analyze/text                   -> Metin tabanlı analiz (mobil)
-  POST /analyze/audio                  -> Ses analizi (mobil)
-  POST /analyze/plant-disease/upload   -> Görüntü yükleme ile bitki hastalığı analizi
-  GET  /demo/plant-disease/{scenario}  -> Pre-built demo senaryosu
-  GET  /demo/live                      -> SSE canlı akış demo
-  GET  /demo/live-ui                   -> Tarayıcı demo UI
-  GET  /health                         -> Sağlık kontrolü
-  GET  /devices/status                 -> IoT cihaz durumu
-"""
 
 import base64
 import logging

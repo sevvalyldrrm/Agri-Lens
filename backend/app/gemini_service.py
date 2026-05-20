@@ -135,15 +135,6 @@ class GeminiService:
             logger.warning(f"Image load failed: {e}")
         return None
 
-    def _load_video(self, video_path: str) -> Optional[dict]:
-        """Loads a video file into Gemini's blob format."""
-        path = Path(video_path)
-        if not path.exists():
-            logger.warning(f"Video file not found: {video_path}")
-            return None
-        mime_type = mimetypes.guess_type(str(path))[0] or "video/mp4"
-        return {"mime_type": mime_type, "data": path.read_bytes()}
-
     def _load_audio(self, audio_base64: str) -> Optional[dict]:
         """Decodes base64 audio data into Gemini's blob format."""
         try:
@@ -221,12 +212,6 @@ class GeminiService:
           video + audio + sensor data -> Gemini -> Function Calling -> DiagnosisResult
         """
         parts: list = []
-
-        if request.video_path:
-            blob = self._load_video(request.video_path)
-            if blob:
-                parts.append(blob)
-                logger.info("Video added to prompt.")
 
         if request.audio_base64:
             blob = self._load_audio(request.audio_base64)
@@ -363,12 +348,6 @@ class GeminiService:
         })
 
         parts: list = []
-        if request.video_path:
-            blob = self._load_video(request.video_path)
-            if blob:
-                parts.append(blob)
-                yield _evt("thinking", {"message": "📹 Field video loaded into context."})
-
         if request.audio_base64:
             blob = self._load_audio(request.audio_base64)
             if blob:
@@ -385,7 +364,6 @@ class GeminiService:
         yield _evt("thinking", {
             "message": (
                 f"🧠 Sending to Gemini: sensor data"
-                f"{' + video' if request.video_path else ''}"
                 f"{' + audio' if request.audio_base64 else ''}"
                 f" + {len(request.historical_logs)} historical records."
             )

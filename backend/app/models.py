@@ -49,8 +49,7 @@ class AnalysisRequest(BaseModel):
     historical_logs: list[HistoricalLog] = Field(
         default=[], description="Historical sensor records (Long Context)"
     )
-    # video and audio delivered as file path or base64
-    video_path: Optional[str] = None
+    # audio delivered as base64
     audio_base64: Optional[str] = None
 
 
