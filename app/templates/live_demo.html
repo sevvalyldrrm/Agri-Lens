@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agri-Lens — Live Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0a0f0a;
+      color: #e2f0e2;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    header h1 { font-size: 2.4rem; color: #4ade80; letter-spacing: 2px; }
+    header p  { color: #86efac; margin-top: .4rem; font-size: 1rem; }
+
+    /* ── Sensor bar ── */
+    #sensors {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: .8rem;
+      margin-bottom: 2rem;
+    }
+    .sensor-card {
+      background: #111b11;
+      border: 1px solid #1f3b1f;
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .sensor-card .label { font-size: .72rem; color: #6b8f6b; text-transform: uppercase; }
+    .sensor-card .value { font-size: 1.6rem; font-weight: 700; color: #4ade80; margin-top: .3rem; }
+    .sensor-card.alert .value { color: #f87171; }
+
+    /* ── Event log ── */
+    #log {
+      background: #0d150d;
+      border: 1px solid #1f3b1f;
+      border-radius: 12px;
+      padding: 1.2rem;
+      height: 380px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: .85rem;
+      margin-bottom: 2rem;
+    }
+    .log-entry { padding: .35rem 0; border-bottom: 1px solid #1a2e1a; line-height: 1.5; }
+    .log-entry:last-child { border-bottom: none; }
+
+    .tag {
+      display: inline-block;
+      padding: .1rem .45rem;
+      border-radius: 4px;
+      font-size: .7rem;
+      font-weight: 700;
+      margin-right: .5rem;
+      text-transform: uppercase;
+    }
+    .tag-start      { background:#1e3a5f; color:#93c5fd; }
+    .tag-thinking   { background:#2d2d0a; color:#fde68a; }
+    .tag-tool_call  { background:#3b1f0a; color:#fb923c; }
+    .tag-tool_result{ background:#0a2e1a; color:#4ade80; }
+    .tag-diagnosis  { background:#2d1050; color:#c084fc; }
+    .tag-error      { background:#450a0a; color:#fca5a5; }
+
+    /* ── Diagnosis card ── */
+    #result {
+      display: none;
+      background: #0d1f1a;
+      border: 1px solid #166534;
+      border-radius: 14px;
+      padding: 1.5rem;
+    }
+    #result h2 { color: #4ade80; margin-bottom: 1rem; font-size: 1.3rem; }
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .result-block { background: #111b11; border-radius: 8px; padding: 1rem; }
+    .result-block h3 { color: #86efac; font-size: .8rem; text-transform: uppercase; margin-bottom: .5rem; }
+    .result-block p  { font-size: .92rem; line-height: 1.6; }
+    .severity-badge {
+      display: inline-block; padding: .25rem .8rem;
+      border-radius: 20px; font-weight: 700; font-size: .85rem;
+    }
+    .sev-low      { background:#14532d; color:#86efac; }
+    .sev-medium   { background:#713f12; color:#fde68a; }
+    .sev-high     { background:#7c2d12; color:#fb923c; }
+    .sev-critical { background:#450a0a; color:#fca5a5; }
+
+    .rec-list { list-style: none; }
+    .rec-list li::before { content: "→ "; color: #4ade80; }
+    .rec-list li { padding: .2rem 0; font-size: .9rem; }
+
+    .action-chip {
+      display: inline-block;
+      background: #1a3a1a; border: 1px solid #166534;
+      border-radius: 6px; padding: .3rem .7rem;
+      font-size: .78rem; margin: .2rem .2rem 0 0;
+      color: #4ade80;
+    }
+
+    /* ── Button ── */
+    #startBtn {
+      display: block; margin: 0 auto 2rem;
+      background: #16a34a; color: #fff;
+      border: none; border-radius: 10px;
+      padding: .85rem 2.5rem; font-size: 1.05rem;
+      cursor: pointer; transition: background .2s;
+    }
+    #startBtn:hover   { background: #15803d; }
+    #startBtn:disabled{ background: #374137; color:#6b8f6b; cursor:default; }
+
+    .confidence-bar-wrap { margin-top: .5rem; }
+    .confidence-bar-bg {
+      background: #1f3b1f; border-radius: 99px; height: 10px; overflow: hidden;
+    }
+    .confidence-bar-fill {
+      background: linear-gradient(90deg,#16a34a,#4ade80);
+      height: 100%; border-radius: 99px;
+      transition: width 1s ease;
+    }
+    .confidence-label { font-size:.8rem; color:#86efac; margin-top:.3rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🌱 Agri-Lens</h1>
+  <p>AI Agronomist — Real-time Field Analysis Demo</p>
+</header>
+
+<!-- Sensor snapshot -->
+<div id="sensors">
+  <div class="sensor-card alert" id="sc-moisture">
+    <div class="label">Soil Moisture</div>
+    <div class="value">18.5%</div>
+  </div>
+  <div class="sensor-card" id="sc-temp">
+    <div class="label">Temperature</div>
+    <div class="value">34.2°C</div>
+  </div>
+  <div class="sensor-card" id="sc-humidity">
+    <div class="label">Air Humidity</div>
+    <div class="value">47.0%</div>
+  </div>
+  <div class="sensor-card" id="sc-ph">
+    <div class="label">pH</div>
+    <div class="value">6.8</div>
+  </div>
+  <div class="sensor-card alert" id="sc-nitrogen">
+    <div class="label">Nitrogen</div>
+    <div class="value">17.5 mg/kg</div>
+  </div>
+  <div class="sensor-card" id="sc-hist">
+    <div class="label">History</div>
+    <div class="value">7 days</div>
+  </div>
+</div>
+
+<button id="startBtn" onclick="startDemo()">▶ Run Live Analysis</button>
+
+<!-- Event log -->
+<div id="log"><span style="color:#3d5c3d">// Events will appear here...</span></div>
+
+<!-- Diagnosis result -->
+<div id="result">
+  <h2>🔬 Diagnosis Result</h2>
+  <div class="result-grid">
+    <div class="result-block">
+      <h3>Diagnosis</h3>
+      <p id="r-diagnosis"></p>
+      <br/>
+      <span id="r-severity" class="severity-badge"></span>
+    </div>
+    <div class="result-block">
+      <h3>Root Cause</h3>
+      <p id="r-rootcause"></p>
+    </div>
+    <div class="result-block">
+      <h3>Recommendations</h3>
+      <ul class="rec-list" id="r-recs"></ul>
+    </div>
+    <div class="result-block">
+      <h3>IoT Actions Triggered</h3>
+      <div id="r-actions"></div>
+      <br/>
+      <h3>Confidence Score</h3>
+      <div class="confidence-bar-wrap">
+        <div class="confidence-bar-bg">
+          <div class="confidence-bar-fill" id="r-conf-bar" style="width:0%"></div>
+        </div>
+        <div class="confidence-label" id="r-conf-label">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="result-block" style="margin-top:1rem">
+    <h3>Report for Farmer</h3>
+    <p id="r-report"></p>
+  </div>
+</div>
+
+<script>
+function startDemo() {
+  const btn = document.getElementById('startBtn');
+  const log = document.getElementById('log');
+  const result = document.getElementById('result');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Analysing...';
+  log.innerHTML = '';
+  result.style.display = 'none';
+
+  const es = new EventSource('/demo/live');
+
+  es.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    appendLog(data);
+
+    if (data.event === 'diagnosis') {
+      renderDiagnosis(data);
+      es.close();
+      btn.disabled = false;
+      btn.textContent = '▶ Run Again';
+    }
+    if (data.event === 'error') {
+      es.close();
+      btn.disabled = false;
+      btn.textContent = '▶ Retry';
+    }
+  };
+
+  es.onerror = () => {
+    appendLog({ event: 'error', message: 'Connection lost.' });
+    es.close();
+    btn.disabled = false;
+    btn.textContent = '▶ Retry';
+  };
+}
+
+function appendLog(data) {
+  const log = document.getElementById('log');
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+
+  const tag = document.createElement('span');
+  tag.className = `tag tag-${data.event}`;
+  tag.textContent = data.event;
+
+  let text = '';
+  if (data.message)       text = data.message;
+  else if (data.question) text = `Field: ${data.field_id} — "${data.question}"`;
+  else                    text = JSON.stringify(data).slice(0, 120) + '…';
+
+  div.appendChild(tag);
+  div.appendChild(document.createTextNode(text));
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderDiagnosis(d) {
+  const result = document.getElementById('result');
+
+  document.getElementById('r-diagnosis').textContent  = d.diagnosis;
+  document.getElementById('r-rootcause').textContent  = d.root_cause;
+  document.getElementById('r-report').textContent     = d.report_for_farmer;
+
+  const sevEl = document.getElementById('r-severity');
+  sevEl.textContent = d.severity.toUpperCase();
+  sevEl.className = `severity-badge sev-${d.severity}`;
+
+  const recList = document.getElementById('r-recs');
+  recList.innerHTML = '';
+  (d.recommendations || []).forEach(r => {
+    const li = document.createElement('li');
+    li.textContent = r;
+    recList.appendChild(li);
+  });
+
+  const actDiv = document.getElementById('r-actions');
+  actDiv.innerHTML = '';
+  (d.actions_taken || []).forEach(a => {
+    const chip = document.createElement('span');
+    chip.className = 'action-chip';
+    chip.textContent = a.action_name + '()';
+    actDiv.appendChild(chip);
+  });
+
+  const pct = Math.round((d.confidence_score || 0) * 100);
+  document.getElementById('r-conf-bar').style.width   = pct + '%';
+  document.getElementById('r-conf-label').textContent = pct + '% confidence';
+
+  result.style.display = 'block';
+  result.scrollIntoView({ behavior: 'smooth' });
+}
+</script>
+</body>
+</html>

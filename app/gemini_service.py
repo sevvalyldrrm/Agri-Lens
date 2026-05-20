@@ -1,10 +1,11 @@
 """
-Gemini Service — the brain of Agri-Lens.
+Agri-Lens — GeminiService.
 
-Gemini capabilities used:
-  • Native Multimodality  : video + audio + text processed simultaneously
-  • Long Context Window   : up to 1 year of sensor logs in a single prompt
-  • Function Calling      : directly triggers IoT devices
+Responsibilities:
+  - Build multimodal prompts (video / audio / image / sensor context)
+  - Run the Gemini Function Calling loop
+  - Return typed result objects (DiagnosisResult, PlantDiseaseResult)
+  - Provide a streaming variant for live demo (SSE)
 """
 
 import json
@@ -12,168 +13,46 @@ import logging
 import base64
 import mimetypes
 from pathlib import Path
+from typing import Optional
 
 import google.generativeai as genai
-from google.generativeai.types import FunctionDeclaration, Tool
 
 from app.config import get_settings
-from app.models import AnalysisRequest, DiagnosisResult, IoTAction, SeverityLevel
+from app.models import (
+    AnalysisRequest, DiagnosisResult, IoTAction, SeverityLevel,
+    PlantDiseaseRequest, PlantDiseaseResult, PriorityMode,
+)
 from app.iot_handler import execute_iot_action, get_device_state
+from app.prompts import FIELD_ANALYSIS_PROMPT, PLANT_DISEASE_PROMPT
+from app.tools import IOT_TOOLS
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-#  IoT tools exposed to Gemini (Function Calling declarations)
-# ---------------------------------------------------------------------------
+_MAX_FUNCTION_CALL_ITERATIONS = 5
 
-IOT_TOOLS = Tool(function_declarations=[
-    FunctionDeclaration(
-        name="activate_irrigation",
-        description=(
-            "Starts the field irrigation system. "
-            "Use when soil moisture is low or drought stress is detected."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "zone":             {"type": "string",  "description": "Irrigation zone (e.g. 'A1', 'B2', 'full field')"},
-                "duration_minutes": {"type": "integer", "description": "Irrigation duration in minutes (10-120)"},
-                "reason":           {"type": "string",  "description": "Justification for the irrigation decision"},
-            },
-            "required": ["zone", "duration_minutes", "reason"],
-        },
-    ),
-    FunctionDeclaration(
-        name="stop_irrigation",
-        description="Stops the active irrigation system.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "zone": {"type": "string", "description": "Zone to stop"},
-            },
-            "required": ["zone"],
-        },
-    ),
-    FunctionDeclaration(
-        name="apply_fertilizer",
-        description=(
-            "Activates the fertilizer pump. "
-            "Use when nitrogen, phosphorus, or potassium deficiency is detected."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "nutrient_type": {
-                    "type": "string",
-                    "enum": ["nitrogen", "phosphorus", "potassium", "mixed"],
-                    "description": "Nutrient type to apply",
-                },
-                "amount_ml": {"type": "integer", "description": "Application amount (ml)"},
-                "reason":     {"type": "string",  "description": "Justification for fertilization"},
-            },
-            "required": ["nutrient_type", "amount_ml", "reason"],
-        },
-    ),
-    FunctionDeclaration(
-        name="activate_ventilation",
-        description="Starts the ventilation fan. Use when humidity is very high or fungal risk is detected.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "speed_percent": {"type": "integer", "description": "Fan speed (0-100%)"},
-                "reason":        {"type": "string",  "description": "Justification"},
-            },
-            "required": ["speed_percent", "reason"],
-        },
-    ),
-    FunctionDeclaration(
-        name="send_agronomist_report",
-        description=(
-            "Sends the diagnosis report to the agronomist and farmer. "
-            "Always call this when severity is 'high' or 'critical'."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "field_id":       {"type": "string", "description": "Field ID"},
-                "diagnosis":      {"type": "string", "description": "Diagnosis summary"},
-                "severity":       {"type": "string", "description": "Severity level"},
-                "farmer_contact": {"type": "string", "description": "Farmer name or contact info"},
-            },
-            "required": ["field_id", "diagnosis", "severity"],
-        },
-    ),
-    FunctionDeclaration(
-        name="trigger_pest_alert",
-        description="Triggers the pest or disease alert system.",
-        parameters={
-            "type": "object",
-            "properties": {
-                "field_id":              {"type": "string", "description": "Field ID"},
-                "pest_type":             {"type": "string", "description": "Pest or disease type"},
-                "affected_area_percent": {"type": "number", "description": "Affected area (%)"},
-            },
-            "required": ["field_id", "pest_type", "affected_area_percent"],
-        },
-    ),
-])
-
-
-# ---------------------------------------------------------------------------
-#  System prompt
-# ---------------------------------------------------------------------------
-
-SYSTEM_PROMPT = """You are Agri-Lens — an AI agricultural assistant that acts as a
-highly qualified agronomist for small-scale farmers anywhere in the world.
-
-YOUR TASKS:
-1. Analyse the farmer's question, field video/audio recording, and IoT sensor data together.
-2. Resolve conflicts between visual findings and sensor data
-   (e.g. if leaves look yellow but sensors indicate drought → diagnose drought stress).
-3. Compare today's readings against historical log data.
-4. After diagnosis, trigger the required IoT actions using the available TOOLS (function calling).
-5. Report back to the farmer in clear, plain language. Keep technical jargon minimal.
-
-DECISION RULES:
-- Soil moisture < 30% → trigger irrigation
-- pH < 5.5 or > 7.5  → issue warning
-- Nitrogen < 20 mg/kg → apply nitrogen fertilizer
-- Air humidity > 85% + high temperature → fungal risk, activate ventilation
-- Severity "high" or "critical" → always send a report
-
-OUTPUT FORMAT (JSON):
-Return your response STRICTLY in the following JSON format:
-{
-  "diagnosis": "Main diagnosis (1-2 sentences)",
-  "severity": "low|medium|high|critical",
-  "root_cause": "Root cause analysis",
-  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
-  "report_for_farmer": "Plain-language explanation for the farmer",
-  "confidence_score": 0.0-1.0
-}
-"""
-
-
-# ---------------------------------------------------------------------------
-#  GeminiService
-# ---------------------------------------------------------------------------
 
 class GeminiService:
     def __init__(self):
         settings = get_settings()
         genai.configure(api_key=settings.gemini_api_key)
+
         self.model = genai.GenerativeModel(
             model_name=settings.gemini_model,
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=FIELD_ANALYSIS_PROMPT,
+            tools=[IOT_TOOLS],
+        )
+        self.disease_model = genai.GenerativeModel(
+            model_name=settings.gemini_model,
+            system_instruction=PLANT_DISEASE_PROMPT,
             tools=[IOT_TOOLS],
         )
         logger.info(f"GeminiService initialized — model: {settings.gemini_model}")
 
     # -----------------------------------------------------------------------
-    #  Helper methods
+    #  Prompt builders
     # -----------------------------------------------------------------------
 
-    def _build_sensor_context(self, request: AnalysisRequest) -> str:
+    def _build_sensor_context(self, request: "AnalysisRequest | PlantDiseaseRequest") -> str:
         """Converts real-time sensor data and historical logs into a single text block."""
         s = request.sensor_data
         lines = [
@@ -202,28 +81,84 @@ class GeminiService:
 
         return "\n".join(lines)
 
-    def _load_video(self, video_path: str):
-        """Loads a video file into the format Gemini expects."""
+    def _load_sensor_log(self, log_path: str) -> str:
+        """
+        Reads sensor_logs.json and passes it to Gemini as Long Context.
+        Summarises only the last 90 days if the file is large.
+        """
+        try:
+            path = Path(log_path)
+            if not path.exists():
+                return ""
+            with open(path) as f:
+                data = json.load(f)
+            logs = data.get("logs", [])
+            recent = logs[-90:] if len(logs) > 90 else logs
+            drought_days = [l for l in recent if l.get("soil_moisture", 100) < 30]
+            lines = [
+                f"=== HISTORICAL SENSOR LOGS (last {len(recent)} days) ===",
+                f"Total records: {len(logs)} days | Low-moisture days (< 30%): {len(drought_days)}",
+                "",
+            ]
+            for entry in recent:
+                event_str = f" | EVENT: {entry['event']}" if entry.get("event") else ""
+                lines.append(
+                    f"{entry['date']} → moisture:{entry['soil_moisture']:.1f}%  "
+                    f"temp:{entry['temperature']:.1f}°C  "
+                    f"humidity:{entry.get('humidity', '-')}%  "
+                    f"nitrogen:{entry.get('nitrogen_mg_kg', '-')} mg/kg"
+                    f"{event_str}"
+                )
+            return "\n".join(lines)
+        except Exception as e:
+            logger.warning(f"Sensor log load failed: {e}")
+            return ""
+
+    def _load_image(
+        self,
+        image_path: Optional[str] = None,
+        image_base64: Optional[str] = None,
+        mime: str = "image/jpeg",
+    ) -> Optional[dict]:
+        """Loads an image file or base64 string into Gemini's blob format."""
+        try:
+            if image_base64:
+                return {"mime_type": mime, "data": base64.b64decode(image_base64)}
+            if image_path:
+                path = Path(image_path)
+                if not path.exists():
+                    logger.warning(f"Image not found: {image_path}")
+                    return None
+                detected_mime = mimetypes.guess_type(str(path))[0] or mime
+                return {"mime_type": detected_mime, "data": path.read_bytes()}
+        except Exception as e:
+            logger.warning(f"Image load failed: {e}")
+        return None
+
+    def _load_video(self, video_path: str) -> Optional[dict]:
+        """Loads a video file into Gemini's blob format."""
         path = Path(video_path)
         if not path.exists():
             logger.warning(f"Video file not found: {video_path}")
             return None
         mime_type = mimetypes.guess_type(str(path))[0] or "video/mp4"
-        with open(path, "rb") as f:
-            data = f.read()
-        return {"mime_type": mime_type, "data": data}
+        return {"mime_type": mime_type, "data": path.read_bytes()}
 
-    def _load_audio(self, audio_base64: str):
-        """Decodes base64 audio data into the format Gemini expects."""
+    def _load_audio(self, audio_base64: str) -> Optional[dict]:
+        """Decodes base64 audio data into Gemini's blob format."""
         try:
-            data = base64.b64decode(audio_base64)
-            return {"mime_type": "audio/wav", "data": data}
+            return {"mime_type": "audio/wav", "data": base64.b64decode(audio_base64)}
         except Exception as e:
             logger.warning(f"Failed to decode audio data: {e}")
             return None
 
-    def _parse_json_response(self, text: str) -> dict:
-        """Extracts the JSON block from the model's response."""
+    # -----------------------------------------------------------------------
+    #  Response parser
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_json_response(text: str) -> dict:
+        """Extracts the JSON block from the model's raw response text."""
         text = text.strip()
         if "```json" in text:
             text = text.split("```json")[1].split("```")[0].strip()
@@ -232,71 +167,38 @@ class GeminiService:
         return json.loads(text)
 
     # -----------------------------------------------------------------------
-    #  Main analysis flow
+    #  Function Calling loop (shared)
     # -----------------------------------------------------------------------
 
-    async def analyze_field(self, request: AnalysisRequest) -> DiagnosisResult:
+    async def _run_function_calling_loop(
+        self,
+        chat,
+        parts: list,
+        label: str = "",
+    ) -> tuple[str, list[IoTAction]]:
         """
-        Multimodal field analysis:
-          1. Video + audio + sensor data  → Gemini
-          2. Function Calling             → IoT actions
-          3. Final JSON response          → DiagnosisResult
+        Sends `parts` to Gemini and handles the Function Calling loop.
+        Returns the final text response and a list of executed IoT actions.
         """
-        # Build prompt parts
-        parts: list = []
-
-        # Video (native multimodality)
-        if request.video_path:
-            video_blob = self._load_video(request.video_path)
-            if video_blob:
-                parts.append(video_blob)
-                logger.info("Video added to prompt.")
-
-        # Audio (native multimodality)
-        if request.audio_base64:
-            audio_blob = self._load_audio(request.audio_base64)
-            if audio_blob:
-                parts.append(audio_blob)
-                logger.info("Audio data added to prompt.")
-
-        # Sensor data + historical logs (Long Context)
-        sensor_context = self._build_sensor_context(request)
-        parts.append(sensor_context)
-
-        # Farmer's question
-        parts.append(f"\n=== FARMER'S QUESTION ===\n{request.question}")
-        parts.append(
-            "\nPlease analyse all the data above, "
-            "trigger the necessary IoT actions, and respond in JSON format."
-        )
-
-        # Send to Gemini — Function Calling loop
         actions_taken: list[IoTAction] = []
-        chat = self.model.start_chat()
         response = await chat.send_message_async(parts)
 
-        # Gemini may call multiple tools in sequence
-        max_iterations = 5
-        for _ in range(max_iterations):
+        for _ in range(_MAX_FUNCTION_CALL_ITERATIONS):
             function_calls = [
                 part.function_call
                 for part in response.candidates[0].content.parts
                 if hasattr(part, "function_call") and part.function_call.name
             ]
-
             if not function_calls:
-                break  # No more tool calls — proceed to final response
+                break
 
-            # Execute each function call and return results to Gemini
             tool_results = []
             for fc in function_calls:
                 fn_name = fc.name
                 fn_args = dict(fc.args)
-                logger.info(f"Triggering IoT action: {fn_name}({fn_args})")
-
+                logger.info(f"[{label}] IoT action: {fn_name}({fn_args})")
                 result, action_log = execute_iot_action(fn_name, fn_args)
                 actions_taken.append(action_log)
-
                 tool_results.append(
                     genai.protos.Part(
                         function_response=genai.protos.FunctionResponse(
@@ -305,13 +207,45 @@ class GeminiService:
                         )
                     )
                 )
-
             response = await chat.send_message_async(tool_results)
 
-        # Parse final response
-        final_text = response.text
-        logger.debug(f"Gemini raw response:\n{final_text}")
+        return response.text, actions_taken
 
+    # -----------------------------------------------------------------------
+    #  Public API: field analysis
+    # -----------------------------------------------------------------------
+
+    async def analyze_field(self, request: AnalysisRequest) -> DiagnosisResult:
+        """
+        Multimodal field analysis:
+          video + audio + sensor data -> Gemini -> Function Calling -> DiagnosisResult
+        """
+        parts: list = []
+
+        if request.video_path:
+            blob = self._load_video(request.video_path)
+            if blob:
+                parts.append(blob)
+                logger.info("Video added to prompt.")
+
+        if request.audio_base64:
+            blob = self._load_audio(request.audio_base64)
+            if blob:
+                parts.append(blob)
+                logger.info("Audio data added to prompt.")
+
+        parts.append(self._build_sensor_context(request))
+        parts.append(f"\n=== FARMER'S QUESTION ===\n{request.question}")
+        parts.append(
+            "\nPlease analyse all the data above, "
+            "trigger the necessary IoT actions, and respond in JSON format."
+        )
+
+        chat = self.model.start_chat()
+        final_text, actions_taken = await self._run_function_calling_loop(
+            chat, parts, label="FieldAnalysis"
+        )
+        logger.debug(f"Gemini raw response:\n{final_text}")
         data = self._parse_json_response(final_text)
 
         return DiagnosisResult(
@@ -326,109 +260,65 @@ class GeminiService:
         )
 
     # -----------------------------------------------------------------------
-    #  Mock stream — offline fallback for demo when API quota is exceeded
+    #  Public API: plant disease cross-query
     # -----------------------------------------------------------------------
 
-    async def _mock_stream(self, request: AnalysisRequest):
+    async def analyze_plant_disease(self, request: PlantDiseaseRequest) -> PlantDiseaseResult:
         """
-        Simulates the full Gemini pipeline locally.
-        Triggered automatically when the real API returns a quota error.
-        Produces identical SSE events so the demo UI works without a live API key.
+        Visual + sensor cross-query pipeline:
+          leaf image + sensor data + historical logs -> Gemini -> PlantDiseaseResult
         """
-        import asyncio
-        import json as _json
+        parts: list = []
 
-        def _evt(event_type: str, payload: dict) -> str:
-            return _json.dumps({"event": event_type, **payload})
-
-        s = request.sensor_data
-        await asyncio.sleep(0.3)
-
-        # Decide which actions to trigger based on sensor thresholds
-        actions_to_run = []
-        if s.soil_moisture < 30:
-            actions_to_run.append((
-                "activate_irrigation",
-                {"zone": "full field", "duration_minutes": 45,
-                 "reason": f"Soil moisture critically low at {s.soil_moisture}%"}
-            ))
-        if s.nitrogen < 20:
-            actions_to_run.append((
-                "apply_fertilizer",
-                {"nutrient_type": "nitrogen", "amount_ml": 500,
-                 "reason": f"Nitrogen deficiency detected: {s.nitrogen} mg/kg (threshold: 20)"}
-            ))
-        actions_to_run.append((
-            "trigger_pest_alert",
-            {"field_id": request.field_id, "pest_type": "aphids",
-             "affected_area_percent": 12.0}
-        ))
-        actions_to_run.append((
-            "send_agronomist_report",
-            {"field_id": request.field_id,
-             "diagnosis": "Drought stress with aphid infestation",
-             "severity": "high"}
-        ))
-
-        yield _evt("thinking", {"message": "⚠️ API quota reached — switching to offline simulation engine."})
-        await asyncio.sleep(0.5)
-        yield _evt("thinking", {"message": "🧠 Analysing sensor data against historical logs..."})
-        await asyncio.sleep(1.0)
-        yield _evt("thinking", {"message": "🔍 Cross-referencing visual symptoms with IoT readings..."})
-        await asyncio.sleep(0.8)
-        yield _evt("thinking", {"message": "⚡ Preparing IoT action plan..."})
-        await asyncio.sleep(0.5)
-
-        actions_taken = []
-        for fn_name, fn_args in actions_to_run:
-            await asyncio.sleep(0.7)
-            yield _evt("tool_call", {
-                "function_name": fn_name,
-                "arguments": fn_args,
-                "message": f"⚡ Gemini is calling → {fn_name}() with {fn_args}",
-            })
-            await asyncio.sleep(0.5)
-            result, action_log = execute_iot_action(fn_name, fn_args)
-            actions_taken.append(action_log)
-            yield _evt("tool_result", {
-                "function_name": fn_name,
-                "result": result,
-                "device_state": get_device_state(),
-                "message": result.get("message", "Action executed."),
-            })
-
-        await asyncio.sleep(0.8)
-
-        diagnosis = DiagnosisResult(
-            field_id=request.field_id,
-            diagnosis="Drought stress combined with aphid infestation causing leaf chlorosis and wilting.",
-            severity=SeverityLevel.HIGH,
-            root_cause=(
-                f"Soil moisture has dropped from 45% to {s.soil_moisture}% over 6 days since last irrigation. "
-                f"Nitrogen is below threshold at {s.nitrogen} mg/kg. "
-                "Aphids detected on leaf undersides, accelerating water and nutrient loss."
-            ),
-            recommendations=[
-                "Irrigate immediately — 45 minutes for full field coverage.",
-                "Apply nitrogen fertilizer within 24 hours.",
-                "Apply approved aphicide to affected areas.",
-                "Increase irrigation frequency to every 2 days until recovery.",
-                "Monitor soil moisture daily and inspect leaves for pest recurrence.",
-            ],
-            actions_taken=actions_taken,
-            report_for_farmer=(
-                "Your plants are under drought stress and have an aphid infestation. "
-                "Soil moisture has been falling for 6 days and is now critically low. "
-                "Irrigation has been started automatically for 45 minutes. "
-                "Nitrogen fertilizer has been applied. "
-                "A pest alert and agronomist report have been sent."
-            ),
-            confidence_score=0.91,
+        image_blob = self._load_image(
+            image_path=request.image_path,
+            image_base64=request.image_base64,
+            mime=request.image_mime,
         )
-        yield _evt("diagnosis", diagnosis.model_dump())
+        if image_blob:
+            parts.append(image_blob)
+            logger.info("Leaf image added to prompt.")
+        else:
+            logger.warning("No image found — analysis will rely on sensor data only.")
+
+        parts.append(self._build_sensor_context(request))
+
+        if request.sensor_log_path:
+            log_text = self._load_sensor_log(request.sensor_log_path)
+            if log_text:
+                parts.append(log_text)
+                logger.info("Historical sensor logs added as Long Context.")
+
+        parts.append(f"\n=== FARMER'S QUESTION ===\n{request.question}")
+        parts.append(
+            "\nAnalyse the image, cross-query with sensor data, "
+            "trigger the necessary IoT actions, and respond in JSON format."
+        )
+
+        chat = self.disease_model.start_chat()
+        final_text, actions_taken = await self._run_function_calling_loop(
+            chat, parts, label="PlantDisease"
+        )
+        data = self._parse_json_response(final_text)
+
+        return PlantDiseaseResult(
+            field_id=request.field_id,
+            visual_finding=data.get("visual_finding", "Image analysis complete"),
+            sensor_finding=data.get("sensor_finding", ""),
+            priority_mode=PriorityMode(data.get("priority_mode", "combined")),
+            priority_reason=data.get("priority_reason", ""),
+            diagnosis=data.get("diagnosis", "Diagnosis unavailable"),
+            severity=SeverityLevel(data.get("severity", "medium")),
+            root_cause=data.get("root_cause", ""),
+            recommendations=data.get("recommendations", []),
+            actions_taken=actions_taken,
+            report_for_farmer=data.get("report_for_farmer", final_text),
+            confidence_score=float(data.get("confidence_score", 0.7)),
+            seasonal_pattern=data.get("seasonal_pattern"),
+        )
 
     # -----------------------------------------------------------------------
-    #  Streaming analysis — yields real-time SSE events for live demo
+    #  Streaming analysis (SSE) — live demo
     # -----------------------------------------------------------------------
 
     async def analyze_field_stream(self, request: AnalysisRequest):
@@ -437,20 +327,18 @@ class GeminiService:
         Falls back to _mock_stream() automatically on API quota errors.
 
         Event types:
-          start        → analysis started, sensor snapshot
-          thinking     → progress heartbeat
-          tool_call    → Gemini requested an IoT action
-          tool_result  → IoT action executed
-          diagnosis    → final DiagnosisResult
-          error        → unrecoverable error
+          start        -> analysis started, sensor snapshot
+          thinking     -> progress heartbeat
+          tool_call    -> Gemini requested an IoT action
+          tool_result  -> IoT action executed
+          diagnosis    -> final DiagnosisResult
+          error        -> unrecoverable error
         """
-        import asyncio
         import json as _json
 
         def _evt(event_type: str, payload: dict) -> str:
             return _json.dumps({"event": event_type, **payload})
 
-        # ── START ────────────────────────────────────────────────────────────
         s = request.sensor_data
         yield _evt("start", {
             "field_id": request.field_id,
@@ -466,7 +354,6 @@ class GeminiService:
             "historical_log_count": len(request.historical_logs),
         })
 
-        # ── BUILD PROMPT ─────────────────────────────────────────────────────
         parts: list = []
         if request.video_path:
             blob = self._load_video(request.video_path)
@@ -496,13 +383,12 @@ class GeminiService:
             )
         })
 
-        # ── GEMINI CALL with quota fallback ──────────────────────────────────
         try:
             actions_taken: list[IoTAction] = []
             chat = self.model.start_chat()
             response = await chat.send_message_async(parts)
 
-            for iteration in range(5):
+            for iteration in range(_MAX_FUNCTION_CALL_ITERATIONS):
                 function_calls = [
                     part.function_call
                     for part in response.candidates[0].content.parts
@@ -514,13 +400,13 @@ class GeminiService:
                 tool_results = []
                 for fc in function_calls:
                     fn_name = fc.name
-                    fn_args  = dict(fc.args)
+                    fn_args = dict(fc.args)
 
                     yield _evt("tool_call", {
                         "iteration":     iteration + 1,
                         "function_name": fn_name,
                         "arguments":     fn_args,
-                        "message":       f"⚡ Gemini is calling → {fn_name}() with {fn_args}",
+                        "message":       f"⚡ Gemini is calling -> {fn_name}() with {fn_args}",
                     })
 
                     result, action_log = execute_iot_action(fn_name, fn_args)
@@ -543,9 +429,7 @@ class GeminiService:
                     )
                 response = await chat.send_message_async(tool_results)
 
-            final_text = response.text
-            data = self._parse_json_response(final_text)
-
+            data = self._parse_json_response(response.text)
             diagnosis = DiagnosisResult(
                 field_id=request.field_id,
                 diagnosis=data.get("diagnosis", "Diagnosis unavailable"),
@@ -553,13 +437,116 @@ class GeminiService:
                 root_cause=data.get("root_cause", ""),
                 recommendations=data.get("recommendations", []),
                 actions_taken=actions_taken,
-                report_for_farmer=data.get("report_for_farmer", final_text),
+                report_for_farmer=data.get("report_for_farmer", response.text),
                 confidence_score=float(data.get("confidence_score", 0.7)),
             )
             yield _evt("diagnosis", diagnosis.model_dump())
 
         except Exception as exc:
-            # Quota or any API error → switch to offline mock
             logger.warning(f"Gemini API error, falling back to mock: {exc}")
             async for event in self._mock_stream(request):
                 yield event
+
+    # -----------------------------------------------------------------------
+    #  Mock stream — offline fallback when API quota is exceeded
+    # -----------------------------------------------------------------------
+
+    async def _mock_stream(self, request: AnalysisRequest):
+        """
+        Simulates the full Gemini pipeline locally.
+        Produces identical SSE events so the demo UI works without a live API key.
+        """
+        import asyncio
+        import json as _json
+
+        def _evt(event_type: str, payload: dict) -> str:
+            return _json.dumps({"event": event_type, **payload})
+
+        s = request.sensor_data
+        actions_to_run = self._build_mock_actions(request)
+
+        yield _evt("thinking", {"message": "⚠️ API quota reached — switching to offline simulation engine."})
+        await asyncio.sleep(0.5)
+        yield _evt("thinking", {"message": "🧠 Analysing sensor data against historical logs..."})
+        await asyncio.sleep(1.0)
+        yield _evt("thinking", {"message": "🔍 Cross-referencing visual symptoms with IoT readings..."})
+        await asyncio.sleep(0.8)
+        yield _evt("thinking", {"message": "⚡ Preparing IoT action plan..."})
+        await asyncio.sleep(0.5)
+
+        actions_taken = []
+        for fn_name, fn_args in actions_to_run:
+            await asyncio.sleep(0.7)
+            yield _evt("tool_call", {
+                "function_name": fn_name,
+                "arguments": fn_args,
+                "message": f"⚡ Gemini is calling -> {fn_name}() with {fn_args}",
+            })
+            await asyncio.sleep(0.5)
+            result, action_log = execute_iot_action(fn_name, fn_args)
+            actions_taken.append(action_log)
+            yield _evt("tool_result", {
+                "function_name": fn_name,
+                "result": result,
+                "device_state": get_device_state(),
+                "message": result.get("message", "Action executed."),
+            })
+
+        await asyncio.sleep(0.8)
+        diagnosis = DiagnosisResult(
+            field_id=request.field_id,
+            diagnosis="Drought stress combined with aphid infestation causing leaf chlorosis and wilting.",
+            severity=SeverityLevel.HIGH,
+            root_cause=(
+                f"Soil moisture has dropped from 45% to {s.soil_moisture}% over 6 days since last irrigation. "
+                f"Nitrogen is below threshold at {s.nitrogen} mg/kg. "
+                "Aphids detected on leaf undersides, accelerating water and nutrient loss."
+            ),
+            recommendations=[
+                "Irrigate immediately — 45 minutes for full field coverage.",
+                "Apply nitrogen fertilizer within 24 hours.",
+                "Apply approved aphicide to affected areas.",
+                "Increase irrigation frequency to every 2 days until recovery.",
+                "Monitor soil moisture daily and inspect leaves for pest recurrence.",
+            ],
+            actions_taken=actions_taken,
+            report_for_farmer=(
+                "Your plants are under drought stress and have an aphid infestation. "
+                "Soil moisture has been falling for 6 days and is now critically low. "
+                "Irrigation has been started automatically for 45 minutes. "
+                "Nitrogen fertilizer has been applied. "
+                "A pest alert and agronomist report have been sent."
+            ),
+            confidence_score=0.91,
+        )
+        yield _evt("diagnosis", diagnosis.model_dump())
+
+    @staticmethod
+    def _build_mock_actions(request: AnalysisRequest) -> list[tuple[str, dict]]:
+        """Determines which mock IoT actions to trigger based on sensor thresholds."""
+        s = request.sensor_data
+        actions = []
+
+        if s.soil_moisture < 30:
+            actions.append((
+                "activate_irrigation",
+                {"zone": "full field", "duration_minutes": 45,
+                 "reason": f"Soil moisture critically low at {s.soil_moisture}%"},
+            ))
+        if s.nitrogen < 20:
+            actions.append((
+                "apply_fertilizer",
+                {"nutrient_type": "nitrogen", "amount_ml": 500,
+                 "reason": f"Nitrogen deficiency detected: {s.nitrogen} mg/kg (threshold: 20)"},
+            ))
+        actions.append((
+            "trigger_pest_alert",
+            {"field_id": request.field_id, "pest_type": "aphids", "affected_area_percent": 12.0},
+        ))
+        actions.append((
+            "send_agronomist_report",
+            {"field_id": request.field_id,
+             "diagnosis": "Drought stress with aphid infestation",
+             "severity": "high"},
+        ))
+        return actions
