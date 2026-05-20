@@ -358,3 +358,13 @@ async def demo_live_ui():
     """
     template_path = Path(__file__).parent / "templates" / "live_demo.html"
     return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
+
+
+@app.get("/mobile", response_class=HTMLResponse, tags=["demo"])
+async def mobile_ui():
+    """
+    Mobile UI simulator — Agri-Lens full 5-screen mobile app mockup.
+    Open in any browser: http://localhost:8000/mobile
+    """
+    template_path = Path(__file__).parent / "templates" / "mobile_ui.html"
+    return HTMLResponse(content=template_path.read_text(encoding="utf-8"))
