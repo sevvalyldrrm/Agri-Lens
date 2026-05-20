@@ -15,4 +15,4 @@ if [[ -f venv/bin/activate ]]; then
 fi
 
 echo "🚀 Starting Agri-Lens backend on http://localhost:8000 ..."
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+./venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
